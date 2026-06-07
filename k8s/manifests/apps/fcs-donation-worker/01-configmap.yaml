@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fcs-donation-worker-local-config
+  namespace: fcs-donation-worker
+  labels:
+    app.kubernetes.io/name: fcs-donation-worker
+    environment: local
+data:
+  DOTNET_ENVIRONMENT: "Docker"
+  ASPNETCORE_ENVIRONMENT: "Docker"
+  ASPNETCORE_URLS: "http://+:8080"
+  KafkaSettings__BootstrapServers: "kafka-service.fcs-infra.svc.cluster.local:29092"
+  KafkaSettings__GroupId: "fcs-donation-worker-consumer-group"
+  KafkaSettings__Topics__DonationReceived: "donation-received"
+  KafkaSettings__Topics__AuditLogRequested: "audit-log-requested"
+  CampaignsApi__BaseUrl: "http://fcs-campaign-service.fcs-campaign.svc.cluster.local"
+  Observability__ServiceName: "Fcs.Donation.Worker"
+  Observability__EnableOtlpExporter: "true"
+  Observability__OtlpEndpoint: "http://otel-collector-service.fcs-infra.svc.cluster.local:4318"
+  Observability__OtlpAuthHeader: ""
