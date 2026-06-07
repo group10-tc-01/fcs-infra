@@ -71,16 +71,25 @@ O script:
 7. Cria topicos Kafka.
 8. Sobe aplicacoes usando imagens `ghcr.io/group10-tc-01/*:main`.
 
-## URLs locais
+## Endpoints acessiveis localmente
 
-| Uso | URL |
+Depois do `bash up.sh`, os servicos abaixo ficam acessiveis pelo host por meio dos `NodePort` mapeados no Kind.
+
+| Componente | Tipo | URL base | Endpoints uteis |
+| --- | --- | --- | --- |
+| `fcs-web` | Frontend | `http://localhost:4200` | `/` |
+| `fcs-identity` | API | `http://localhost:64534` | `/swagger`, `/health`, `/metrics`, `/api/v1/auth/register/donor`, `/api/v1/auth/login`, `/api/v1/auth/refresh`, `/api/v1/me` |
+| `fcs-campaign` | API | `http://localhost:55904` | `/swagger`, `/health`, `/metrics`, `/api/v1/campaigns`, `/api/v1/transparency/campaigns` |
+| `fcs-donations` | API | `http://localhost:5003` | `/swagger`, `/health`, `/metrics`, `/api/v1/donations` |
+| Keycloak | Ferramenta | `http://localhost:8081` | `/admin`, `/realms/conexao-solidaria` |
+| Kafka UI | Ferramenta | `http://localhost:8082` | `/` |
+
+Os workers `fcs-donation-worker` e `fcs-audit-logs` tambem expõem `/health` e `/metrics`, mas ficam acessiveis apenas dentro do cluster por `ClusterIP`.
+
+| Componente | URL interna |
 | --- | --- |
-| Web | `http://localhost:4200` |
-| Identity API | `http://localhost:64534` |
-| Campaign API | `http://localhost:55904` |
-| Donations API | `http://localhost:5003` |
-| Keycloak | `http://localhost:8081` |
-| Kafka UI | `http://localhost:8082` |
+| `fcs-donation-worker` | `http://fcs-donation-worker-service.fcs-donation-worker.svc.cluster.local` |
+| `fcs-audit-logs` | `http://fcs-audit-logs-service.fcs-audit-logs.svc.cluster.local` |
 
 Essas portas preservam o comportamento atual do `fcs-web`, que ainda referencia `64534` para identity e `55904` para campaign.
 
