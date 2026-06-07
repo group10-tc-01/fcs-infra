@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fcs-donations
+  namespace: fcs-donations
+  labels:
+    app.kubernetes.io/name: fcs-donations
+    app.kubernetes.io/component: api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: fcs-donations
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: fcs-donations
+        app.kubernetes.io/component: api
+    spec:
+      containers:
+        - name: fcs-donations
+          image: ghcr.io/group10-tc-01/fcs-donations:main
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+              name: http
+          envFrom:
+            - configMapRef:
+                name: fcs-donations-local-config
+          env:
+            - name: ConnectionStrings__SqlServer
+              valueFrom:
+                secretKeyRef:
+                  name: fcs-donations-local-secret
+                  key: sqlserver-connection-string
+            - name: JwtSettings__SecretKey
+              valueFrom:
+                secretKeyRef:
+                  name: fcs-donations-local-secret
+                  key: jwt-secret-key
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            failureThreshold: 18
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            failureThreshold: 6
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fcs-donations-service
+  namespace: fcs-donations
+  labels:
+    app.kubernetes.io/name: fcs-donations
+    app.kubernetes.io/component: api
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: fcs-donations
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+      nodePort: 30085

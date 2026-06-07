@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fcs-donations-local-config
+  namespace: fcs-donations
+  labels:
+    app.kubernetes.io/name: fcs-donations
+    environment: local
+data:
+  ASPNETCORE_ENVIRONMENT: "Docker"
+  ASPNETCORE_URLS: "http://+:8080"
+  KafkaSettings__BootstrapServers: "kafka-service.fcs-infra.svc.cluster.local:29092"
+  KafkaSettings__TopicName: "donation-received"
+  CampaignApi__BaseUrl: "http://fcs-campaign-service.fcs-campaign.svc.cluster.local"
+  CampaignApi__TimeoutSeconds: "10"
+  JwtSettings__Issuer: "Fcs.Donations"
+  JwtSettings__Audience: "Fcs.Donations.Client"
+  JwtSettings__AccessTokenExpirationMinutes: "60"
+  Observability__ServiceName: "Fcs.Donations"
+  Observability__EnableOtlpExporter: "true"
+  Observability__OtlpEndpoint: "http://otel-collector-service.fcs-infra.svc.cluster.local:4318"
+  Observability__OtlpAuthHeader: ""
