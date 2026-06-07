@@ -1,0 +1,10 @@
+services:
+  otel-collector:
+    command:
+      - --config=/etc/otelcol/config-with-datadog.yml
+    environment:
+      DD_API_KEY: ${DD_API_KEY}
+      DD_SITE: ${DD_SITE:-datadoghq.com}
+    volumes:
+      - ./otel-collector/config.yml:/etc/otelcol/config.yml:ro
+      - ./otel-collector/config-with-datadog.yml:/etc/otelcol/config-with-datadog.yml:ro

@@ -86,6 +86,7 @@ Estrutura esperada do repositório:
 ```text
 docker/
   docker-compose.yml                 # Ambiente integrado local
+  observability/                     # Stack local Grafana, Prometheus, Tempo, Loki e OpenTelemetry Collector
 k8s/
   apps/                              # Referências integradas das aplicações
   platform/                          # Keycloak, Kafka, MongoDB e componentes compartilhados
@@ -171,6 +172,30 @@ URLs úteis em ambiente local:
 
 ---
 
+## Subindo apenas a observabilidade local
+
+A stack de observabilidade em Docker Compose fica em `docker/observability` e pode ser usada antes dos manifests Kind estarem completos.
+
+```bash
+cd docker/observability
+docker compose --env-file .env.example up -d
+```
+
+Componentes expostos:
+
+- Grafana: `http://localhost:3000`
+- Prometheus: `http://localhost:9090`
+- Tempo: `http://localhost:3200`
+- Loki: `http://localhost:3100`
+- OpenTelemetry Collector OTLP gRPC: `localhost:4317`
+- OpenTelemetry Collector OTLP HTTP: `localhost:4318`
+
+O Grafana já sobe com datasources para Prometheus, Tempo e Loki. Para espelhar traces e métricas no Datadog, copie `docker/observability/.env.example` para `.env`, preencha `DD_API_KEY` e use o override `docker-compose.datadog.yml`. Logs continuam somente no Loki local por padrão.
+
+Detalhes operacionais: [docker/observability/README.md](docker/observability/README.md).
+
+---
+
 ## Subindo o ambiente local com Kind
 
 Kind é o ambiente Kubernetes local padrão da fase 5.
@@ -237,7 +262,7 @@ As variáveis de ambiente, nomes de recursos, regiões e secrets devem ser param
 
 ## Observabilidade
 
-Prometheus e Grafana rodam dentro do Kubernetes no namespace `fcs-infra`.
+Prometheus e Grafana rodam dentro do Kubernetes no namespace `fcs-infra` na arquitetura final. Para desenvolvimento local imediato, a stack Docker Compose em `docker/observability` fornece Grafana, Prometheus, Tempo, Loki e OpenTelemetry Collector.
 
 Dashboard mínimo esperado:
 
@@ -252,6 +277,10 @@ Endpoints operacionais das aplicações:
 
 - `GET /health`
 - `GET /metrics`
+
+Destino OTLP padrão para serviços instrumentados em container:
+
+- `http://otel-collector:4318`
 
 Esses endpoints são internos/operacionais e não devem ser expostos pelo APIM.
 

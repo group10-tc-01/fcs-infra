@@ -1,0 +1,91 @@
+name: fcs-observability
+
+services:
+  grafana:
+    image: grafana/grafana:11.5.2
+    container_name: fcs-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+      - tempo
+      - loki
+    networks:
+      - observability
+
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    container_name: fcs-prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-otlp-receiver
+    ports:
+      - "9090:9090"
+    volumes:
+      - prometheus-data:/prometheus
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    networks:
+      - observability
+
+  tempo:
+    image: grafana/tempo:2.7.2
+    container_name: fcs-tempo
+    command:
+      - -config.file=/etc/tempo/tempo.yml
+    ports:
+      - "3200:3200"
+    volumes:
+      - tempo-data:/var/tempo
+      - ./tempo/tempo.yml:/etc/tempo/tempo.yml:ro
+    networks:
+      - observability
+
+  loki:
+    image: grafana/loki:3.3.2
+    container_name: fcs-loki
+    command:
+      - -config.file=/etc/loki/loki.yml
+    ports:
+      - "3100:3100"
+    volumes:
+      - loki-data:/loki
+      - ./loki/loki.yml:/etc/loki/loki.yml:ro
+    networks:
+      - observability
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.118.0
+    container_name: fcs-otel-collector
+    command:
+      - --config=/etc/otelcol/config.yml
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+      - "9464:9464"
+      - "8888:8888"
+    volumes:
+      - ./otel-collector/config.yml:/etc/otelcol/config.yml:ro
+    depends_on:
+      - tempo
+      - loki
+    networks:
+      - observability
+
+networks:
+  observability:
+    name: fcs-observability
+
+volumes:
+  grafana-data:
+  prometheus-data:
+  tempo-data:
+  loki-data:
