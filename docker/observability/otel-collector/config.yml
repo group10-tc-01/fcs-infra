@@ -7,24 +7,26 @@ receivers:
         endpoint: 0.0.0.0:4318
 
 processors:
+  resource:
+    attributes:
+      - key: deployment.environment
+        value: ${env:DD_ENV}
+        action: upsert
+      - key: service.namespace
+        value: fcs
+        action: upsert
   batch:
     timeout: 5s
     send_batch_size: 1024
 
+connectors:
+  datadog/connector:
+
 exporters:
-  otlp/tempo:
-    endpoint: tempo:4317
-    tls:
-      insecure: true
-
-  otlphttp/loki:
-    endpoint: http://loki:3100/otlp
-
-  prometheus:
-    endpoint: 0.0.0.0:9464
-    namespace: fcs
-    const_labels:
-      environment: local
+  datadog:
+    api:
+      key: ${env:DD_API_KEY}
+      site: ${env:DD_SITE}
 
   debug:
     verbosity: basic
@@ -38,13 +40,13 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [batch]
-      exporters: [otlp/tempo, debug]
+      processors: [resource, batch]
+      exporters: [datadog/connector, datadog, debug]
     metrics:
-      receivers: [otlp]
-      processors: [batch]
-      exporters: [prometheus]
+      receivers: [otlp, datadog/connector]
+      processors: [resource, batch]
+      exporters: [datadog]
     logs:
       receivers: [otlp]
-      processors: [batch]
-      exporters: [otlphttp/loki]
+      processors: [resource, batch]
+      exporters: [datadog]

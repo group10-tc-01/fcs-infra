@@ -1,64 +1,29 @@
 name: fcs-observability
 
 services:
-  grafana:
-    image: grafana/grafana:11.5.2
-    container_name: fcs-grafana
+  datadog-agent:
+    image: datadog/agent:7
+    container_name: fcs-datadog-agent
     environment:
-      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
-      GF_USERS_ALLOW_SIGN_UP: "false"
+      DD_API_KEY: ${DD_API_KEY:?DD_API_KEY is required}
+      DD_SITE: ${DD_SITE:-datadoghq.com}
+      DD_ENV: ${DD_ENV:-local}
+      DD_SERVICE: fcs-infra
+      DD_LOGS_ENABLED: "true"
+      DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL: "true"
+      DD_APM_ENABLED: "true"
+      DD_APM_NON_LOCAL_TRAFFIC: "true"
+      DD_DOGSTATSD_NON_LOCAL_TRAFFIC: "true"
+      DD_PROCESS_AGENT_ENABLED: "true"
+      DD_CONTAINER_LABELS_AS_TAGS: '{"com.docker.compose.service":"compose_service"}'
     ports:
-      - "3000:3000"
+      - "8125:8125/udp"
+      - "8126:8126"
     volumes:
-      - grafana-data:/var/lib/grafana
-      - ./grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
-    depends_on:
-      - prometheus
-      - tempo
-      - loki
-    networks:
-      - observability
-
-  prometheus:
-    image: prom/prometheus:v3.1.0
-    container_name: fcs-prometheus
-    command:
-      - --config.file=/etc/prometheus/prometheus.yml
-      - --storage.tsdb.path=/prometheus
-      - --web.enable-otlp-receiver
-    ports:
-      - "9090:9090"
-    volumes:
-      - prometheus-data:/prometheus
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-    networks:
-      - observability
-
-  tempo:
-    image: grafana/tempo:2.7.2
-    container_name: fcs-tempo
-    command:
-      - -config.file=/etc/tempo/tempo.yml
-    ports:
-      - "3200:3200"
-    volumes:
-      - tempo-data:/var/tempo
-      - ./tempo/tempo.yml:/etc/tempo/tempo.yml:ro
-    networks:
-      - observability
-
-  loki:
-    image: grafana/loki:3.3.2
-    container_name: fcs-loki
-    command:
-      - -config.file=/etc/loki/loki.yml
-    ports:
-      - "3100:3100"
-    volumes:
-      - loki-data:/loki
-      - ./loki/loki.yml:/etc/loki/loki.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /proc/:/host/proc/:ro
+      - /sys/fs/cgroup/:/host/sys/fs/cgroup:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
     networks:
       - observability
 
@@ -70,22 +35,16 @@ services:
     ports:
       - "4317:4317"
       - "4318:4318"
-      - "9464:9464"
       - "8888:8888"
+    environment:
+      DD_API_KEY: ${DD_API_KEY:?DD_API_KEY is required}
+      DD_SITE: ${DD_SITE:-datadoghq.com}
+      DD_ENV: ${DD_ENV:-local}
     volumes:
       - ./otel-collector/config.yml:/etc/otelcol/config.yml:ro
-    depends_on:
-      - tempo
-      - loki
     networks:
       - observability
 
 networks:
   observability:
     name: fcs-observability
-
-volumes:
-  grafana-data:
-  prometheus-data:
-  tempo-data:
-  loki-data:

@@ -1,42 +1,40 @@
 # Observabilidade local
 
-Stack local de observabilidade da Conexao Solidaria com Grafana, Prometheus,
-Tempo, Loki e OpenTelemetry Collector.
+Stack local de observabilidade da Conexao Solidaria com Datadog Agent e
+OpenTelemetry Collector.
 
 ## Subir a stack
 
 ```bash
 cd docker/observability
-docker compose --env-file .env.example up -d
+cp .env.example .env
+# preencha DD_API_KEY e ajuste DD_SITE conforme sua conta
+docker compose --env-file .env up -d
 ```
 
-URLs locais:
+Componentes locais:
 
-- Grafana: <http://localhost:3000>
-- Prometheus: <http://localhost:9090>
-- Tempo: <http://localhost:3200>
-- Loki: <http://localhost:3100>
+- Datadog Agent APM: `localhost:8126`
+- Datadog Agent DogStatsD: `localhost:8125/udp`
 - OTLP gRPC: `localhost:4317`
 - OTLP HTTP: `localhost:4318`
+- OpenTelemetry Collector metrics: <http://localhost:8888/metrics>
 
-Credenciais padrao do Grafana:
+Dashboards e APM ficam no Datadog:
 
-- Usuario: `admin`
-- Senha: `admin`
-
-Dashboard provisionado:
-
-- FCS Operational Overview: <http://localhost:3000/d/fcs-operational-overview/fcs-operational-overview>
+- US1: <https://app.datadoghq.com>
+- US5: <https://us5.datadoghq.com>
+- EU: <https://app.datadoghq.eu>
 
 ## Enviar telemetria dos servicos
 
-Esta primeira entrega prepara a infra para receber telemetria. A padronizacao
-dos microservicos sera feita depois. Quando um servico estiver configurado para
-OTLP, aponte para o collector:
+Quando um servico estiver configurado para OTLP, aponte para o collector:
 
 ```text
 OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
 OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+OTEL_SERVICE_NAME=fcs-identity
+OTEL_RESOURCE_ATTRIBUTES=deployment.environment=local,service.namespace=fcs
 ```
 
 Para containers que nao estejam na rede `fcs-observability`, use o endpoint do
@@ -46,35 +44,25 @@ host:
 OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
 ```
 
-## Datadog opcional
+Tambem e possivel enviar traces diretamente para o Datadog Agent:
 
-Por padrao, nada e enviado para Datadog. Para espelhar traces, metricas e logs
-para Datadog, copie `.env.example` para `.env`, preencha `DD_API_KEY`, mantenha
-`DD_SITE` conforme sua conta e suba com o override:
-
-```bash
-cd docker/observability
-docker compose --env-file .env \
-  -f docker-compose.yml \
-  -f docker-compose.datadog.yml \
-  up -d
+```text
+DD_TRACE_AGENT_URL=http://datadog-agent:8126
 ```
 
-Com o override do Datadog ativo, logs continuam no Loki local e tambem sao
-enviados para o Datadog. Use isso com cuidado em ambientes com volume alto.
+Para containers fora da rede `fcs-observability`, use `http://localhost:8126`.
 
 ## Validacao rapida
 
 ```bash
-docker compose --env-file .env.example config
-docker compose --env-file .env.example up -d
-docker compose --env-file .env.example ps
+docker compose --env-file .env config
+docker compose --env-file .env up -d
+docker compose --env-file .env ps
 ```
 
-O collector expoe metricas internas em `http://localhost:8888/metrics` e as
-metricas recebidas via OTLP em `http://localhost:9464/metrics`.
+O collector expoe metricas internas em `http://localhost:8888/metrics`.
 
-## Validar o dashboard com telemetria sintetica
+## Validar com telemetria sintetica
 
 Com a stack no ar, envie traces, metricas e logs para o collector:
 
@@ -97,7 +85,7 @@ docker run --rm --network fcs-observability \
   --body "fcs observability synthetic log"
 ```
 
-O servico `fcs-telemetrygen` deve aparecer na variavel `Service` do dashboard.
+O servico `fcs-telemetrygen` deve aparecer no Datadog em APM, Metrics e Logs.
 
 ## Proxima etapa: fcs-identity
 
@@ -111,4 +99,4 @@ Observability__OtlpAuthHeader=
 ```
 
 O endpoint `/metrics` do Identity pode continuar disponivel, mas o caminho
-principal para a stack local passa a ser OTLP via collector.
+principal para a stack local passa a ser OTLP via collector e Datadog Agent.

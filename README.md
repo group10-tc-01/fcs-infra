@@ -14,7 +14,7 @@ Repositório de **Infraestrutura Compartilhada** da plataforma **Conexão Solid�
 - Manter configuração do **Keycloak** para realm, clients e roles canônicas `GestorONG` e `Doador`.
 - Manter configuração de **Kafka**, **Kafka UI** e tópicos da plataforma.
 - Manter configuração de **MongoDB** para auditoria centralizada.
-- Manter **Prometheus** e dashboards do **Grafana** para observabilidade.
+- Manter **Datadog Agent**, **Datadog Cluster Agent** e dashboards do **Datadog** para observabilidade.
 - Provisionar recursos Azure com **Terraform**.
 - Representar o **Azure API Management** como borda pública das APIs.
 - Documentar o passo a passo do ambiente completo da demo.
@@ -37,7 +37,7 @@ ADRs relevantes:
 - [ADR 0017 - Key Vault para segredos](https://github.com/group10-tc-01/fcs-fase05-docs/blob/main/adr/0017-use-key-vault-for-secrets.md)
 - [ADR 0018 - Kafka dentro do Kubernetes](https://github.com/group10-tc-01/fcs-fase05-docs/blob/main/adr/0018-run-kafka-inside-kubernetes.md)
 - [ADR 0019 - Keycloak dentro do Kubernetes](https://github.com/group10-tc-01/fcs-fase05-docs/blob/main/adr/0019-run-keycloak-inside-kubernetes.md)
-- [ADR 0020 - Prometheus e Grafana dentro do Kubernetes](https://github.com/group10-tc-01/fcs-fase05-docs/blob/main/adr/0020-run-prometheus-and-grafana-inside-kubernetes.md)
+- [ADR 0020 - Datadog para observabilidade](https://github.com/group10-tc-01/fcs-fase05-docs/blob/main/adr/0020-use-datadog-for-observability.md)
 - [ADR 0026 - Namespaces Kubernetes separados](https://github.com/group10-tc-01/fcs-fase05-docs/blob/main/adr/0026-use-separated-kubernetes-namespaces.md)
 - [ADR 0028 - Azure API Management como borda pública](https://github.com/group10-tc-01/fcs-fase05-docs/blob/main/adr/0028-use-azure-api-management-as-public-edge.md)
 - [ADR 0029 - Kind para Kubernetes local](https://github.com/group10-tc-01/fcs-fase05-docs/blob/main/adr/0029-use-kind-for-local-kubernetes.md)
@@ -54,8 +54,9 @@ ADRs relevantes:
 | Keycloak | Identidade, emissão de JWT e roles `GestorONG` e `Doador` |
 | Kafka | Mensageria dos tópicos `donation-received` e `audit-log-requested` |
 | Kafka UI | Apoio operacional para inspeção dos tópicos |
-| Prometheus | Coleta de métricas dos serviços |
-| Grafana | Dashboards da demo e observabilidade |
+| Datadog Agent | Coleta de métricas, logs, traces e APM em ambiente local e Kubernetes |
+| Datadog Cluster Agent | Coleta de métricas e metadados Kubernetes em AKS/Kind |
+| Datadog | Dashboards da demo, métricas reais, logs e APM |
 | Azure SQL | Bancos SQL gerenciados no ambiente Azure |
 | Azure Key Vault | Segredos e configurações sensíveis no ambiente Azure |
 | Azure Container Registry | Registro das imagens das aplicações |
@@ -75,7 +76,7 @@ Namespaces confirmados:
 | `fcs-donations` | API de doações |
 | `fcs-donation-worker` | Worker de processamento de doações |
 | `fcs-audit-logs` | Worker/API de auditoria centralizada |
-| `fcs-infra` | Keycloak, Kafka, Kafka UI, MongoDB, Prometheus, Grafana e componentes compartilhados |
+| `fcs-infra` | Keycloak, Kafka, Kafka UI, MongoDB, Datadog Agent, Datadog Cluster Agent e componentes compartilhados |
 
 ---
 
@@ -86,19 +87,19 @@ Estrutura esperada do repositório:
 ```text
 docker/
   docker-compose.yml                 # Ambiente integrado local
-  observability/                     # Stack local Grafana, Prometheus, Tempo, Loki e OpenTelemetry Collector
+  observability/                     # Stack local Datadog Agent e OpenTelemetry Collector
 k8s/
   apps/                              # Referências integradas das aplicações
   platform/                          # Keycloak, Kafka, MongoDB e componentes compartilhados
-  observability/                     # Prometheus, Grafana e dashboards
+  observability/                     # Datadog Agent, Datadog Cluster Agent e configuracoes de observabilidade
 keycloak/
   conexao-solidaria-realm.json       # Realm, clients e roles
 kafka/
   topics/                            # Tópicos donation-received e audit-log-requested
 mongodb/
   init/                              # Inicialização do AuditLogsDb quando aplicável
-grafana/
-  dashboards/                        # Dashboards da demo
+datadog/
+  dashboards/                        # Definicoes e referencias dos dashboards da demo
 terraform/
   environments/
     dev/                             # Ambiente Azure de desenvolvimento/demo
@@ -155,16 +156,19 @@ Serviços esperados:
 - Keycloak
 - Kafka
 - Kafka UI
-- Prometheus
-- Grafana
+- Datadog Agent
+- OpenTelemetry Collector
 - APIs e workers da plataforma quando as imagens estiverem disponíveis
 
 URLs úteis em ambiente local:
 
 - Keycloak Admin Console: `http://localhost:8081`
 - Kafka UI: `http://localhost:8082`
-- Grafana: `http://localhost:3000`
-- Prometheus: `http://localhost:9090`
+- Datadog: `https://app.datadoghq.com` ou site equivalente da conta
+- OpenTelemetry Collector OTLP gRPC: `localhost:4317`
+- OpenTelemetry Collector OTLP HTTP: `localhost:4318`
+- Datadog Agent APM: `localhost:8126`
+- Datadog Agent DogStatsD: `localhost:8125/udp`
 - MongoDB: `localhost:27017`
 - SQL Server: `localhost,1433`
 
@@ -178,19 +182,19 @@ A stack de observabilidade em Docker Compose fica em `docker/observability` e po
 
 ```bash
 cd docker/observability
-docker compose --env-file .env.example up -d
+cp .env.example .env
+# preencha DD_API_KEY e ajuste DD_SITE conforme sua conta
+docker compose --env-file .env up -d
 ```
 
 Componentes expostos:
 
-- Grafana: `http://localhost:3000`
-- Prometheus: `http://localhost:9090`
-- Tempo: `http://localhost:3200`
-- Loki: `http://localhost:3100`
+- Datadog Agent APM: `localhost:8126`
+- Datadog Agent DogStatsD: `localhost:8125/udp`
 - OpenTelemetry Collector OTLP gRPC: `localhost:4317`
 - OpenTelemetry Collector OTLP HTTP: `localhost:4318`
 
-O Grafana já sobe com datasources para Prometheus, Tempo e Loki. Para espelhar traces e métricas no Datadog, copie `docker/observability/.env.example` para `.env`, preencha `DD_API_KEY` e use o override `docker-compose.datadog.yml`. Logs continuam somente no Loki local por padrão.
+O Datadog Agent coleta telemetria dos containers locais e o OpenTelemetry Collector recebe OTLP dos serviços instrumentados. Dashboards, logs, métricas e APM são visualizados no Datadog.
 
 Detalhes operacionais: [docker/observability/README.md](docker/observability/README.md).
 
@@ -262,7 +266,7 @@ As variáveis de ambiente, nomes de recursos, regiões e secrets devem ser param
 
 ## Observabilidade
 
-Prometheus e Grafana rodam dentro do Kubernetes no namespace `fcs-infra` na arquitetura final. Para desenvolvimento local imediato, a stack Docker Compose em `docker/observability` fornece Grafana, Prometheus, Tempo, Loki e OpenTelemetry Collector.
+Datadog Agent e Datadog Cluster Agent rodam dentro do Kubernetes no namespace `fcs-infra` na arquitetura final. Para desenvolvimento local imediato, a stack Docker Compose em `docker/observability` fornece Datadog Agent e OpenTelemetry Collector.
 
 Dashboard mínimo esperado:
 
@@ -343,7 +347,7 @@ Gates principais:
 | Auditoria centralizada | MongoDB `AuditLogsDb` e Kafka `audit-log-requested` |
 | Mensageria assíncrona | Kafka e tópicos da plataforma |
 | Autenticação e RBAC | Keycloak com roles `GestorONG` e `Doador` |
-| Observabilidade | Prometheus, Grafana, `/health` e `/metrics` |
+| Observabilidade | Datadog, `/health` e `/metrics` |
 | API Gateway na Azure | Azure API Management |
 | CI/CD e IaC | `fcs-pipelines` + Terraform |
 
