@@ -31,26 +31,26 @@ O ambiente local sobe apenas os componentes necessarios para a arquitetura atual
 - kubectl
 - Repos `fcs-infra` e `fcs-identity` clonados lado a lado
 - `DD_API_KEY` valida para enviar telemetria ao Datadog
-- Acesso ao GHCR com permissao `read:packages`
 
 ## Variaveis obrigatorias
 
 ```bash
-export GHCR_USERNAME="seu-usuario"
-export GHCR_TOKEN="token-com-read-packages"
 export DD_API_KEY="datadog-api-key"
 export DD_SITE="us5.datadoghq.com"
 ```
 
 `DD_API_KEY` e obrigatoria porque o OpenTelemetry Collector local exporta diretamente para o Datadog.
 
-`GHCR_USERNAME` e `GHCR_TOKEN` sao obrigatorias por padrao porque as imagens dos servicos podem estar privadas no GitHub Packages. Crie um token no GitHub com permissao `read:packages` e, se necessario, acesso a organizacao `group10-tc-01`.
+## Variaveis opcionais para GHCR privado
 
-Se os packages forem publicos, voce pode pular a criacao de `imagePullSecret`:
+Se algum package GHCR estiver privado, informe um token com permissao `read:packages` para o script criar `imagePullSecret` nos namespaces das aplicacoes:
 
 ```bash
-export FCS_SKIP_GHCR_AUTH=true
+export GHCR_USERNAME="seu-usuario"
+export GHCR_TOKEN="token-com-read-packages"
 ```
+
+Se os packages estiverem publicos, nao configure essas variaveis.
 
 Valores locais podem ser sobrescritos:
 
@@ -73,7 +73,7 @@ O script:
 1. Cria o cluster Kind `fcs-local` se ele nao existir.
 2. Aplica namespaces.
 3. Cria secrets locais.
-4. Cria `imagePullSecret` nos namespaces para baixar imagens privadas do GHCR.
+4. Cria `imagePullSecret` nos namespaces se `GHCR_USERNAME` e `GHCR_TOKEN` forem informados.
 5. Cria ConfigMap do realm do Keycloak a partir de `../../fcs-identity/keycloak/conexao-solidaria-realm.json`.
 6. Sobe infraestrutura.
 7. Cria topicos Kafka.
