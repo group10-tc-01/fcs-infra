@@ -53,10 +53,6 @@ create_secret() {
 create_ghcr_secret() {
   local namespace="$1"
 
-  if [ -z "${GHCR_USERNAME:-}" ] || [ -z "${GHCR_TOKEN:-}" ]; then
-    return
-  fi
-
   kubectl -n "$namespace" create secret docker-registry ghcr-pull-secret \
     --docker-server=ghcr.io \
     --docker-username="$GHCR_USERNAME" \
@@ -74,6 +70,13 @@ require_command kubectl
 if [ -z "${DD_API_KEY:-}" ]; then
   echo "DD_API_KEY is required to run the local Datadog observability stack." >&2
   echo "Export DD_API_KEY and DD_SITE before running this script." >&2
+  exit 1
+fi
+
+if [ "${FCS_SKIP_GHCR_AUTH:-false}" != "true" ] && { [ -z "${GHCR_USERNAME:-}" ] || [ -z "${GHCR_TOKEN:-}" ]; }; then
+  echo "GHCR credentials are required because the service images are expected to be private." >&2
+  echo "Export GHCR_USERNAME and GHCR_TOKEN with read:packages permission before running this script." >&2
+  echo "If the packages are public, set FCS_SKIP_GHCR_AUTH=true to skip imagePullSecret creation." >&2
   exit 1
 fi
 
@@ -114,10 +117,14 @@ else
   exit 1
 fi
 
-echo "Creating GHCR image pull secrets when credentials are provided"
-for namespace in fcs-identity fcs-campaign fcs-donations fcs-donation-worker fcs-audit-logs fcs-web; do
-  create_ghcr_secret "$namespace"
-done
+if [ "${FCS_SKIP_GHCR_AUTH:-false}" != "true" ]; then
+  echo "Creating GHCR image pull secrets"
+  for namespace in fcs-identity fcs-campaign fcs-donations fcs-donation-worker fcs-audit-logs fcs-web; do
+    create_ghcr_secret "$namespace"
+  done
+else
+  echo "Skipping GHCR image pull secrets because FCS_SKIP_GHCR_AUTH=true"
+fi
 
 echo "Creating local application secrets"
 create_secret fcs-identity fcs-identity-local-secret \
