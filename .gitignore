@@ -1,2 +1,3 @@
 .env
 docker/observability/.env
+k8s/.env

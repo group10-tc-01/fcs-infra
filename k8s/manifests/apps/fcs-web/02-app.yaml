@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fcs-web
+  namespace: fcs-web
+  labels:
+    app.kubernetes.io/name: fcs-web
+    app.kubernetes.io/component: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: fcs-web
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: fcs-web
+        app.kubernetes.io/component: frontend
+    spec:
+      containers:
+        - name: fcs-web
+          image: ghcr.io/group10-tc-01/fcs-web:main
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+              name: http
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 12
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 20
+            periodSeconds: 20
+            failureThreshold: 6
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fcs-web-service
+  namespace: fcs-web
+  labels:
+    app.kubernetes.io/name: fcs-web
+    app.kubernetes.io/component: frontend
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: fcs-web
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      nodePort: 30080

@@ -204,32 +204,49 @@ Detalhes operacionais: [docker/observability/README.md](docker/observability/REA
 
 Kind é o ambiente Kubernetes local padrão da fase 5.
 
-### 1. Criar o cluster
+Os manifests locais ficam em [`k8s/`](./k8s) e usam as imagens `ghcr.io/group10-tc-01/*:main` dos repositórios da plataforma.
+
+### Fluxo automatizado
 
 ```bash
-kind create cluster --name fcs-local
+cd k8s
+bash up.sh
 ```
 
-### 2. Aplicar namespaces
+Se os packages GHCR estiverem privados, exporte `GHCR_USERNAME` e `GHCR_TOKEN` antes de executar o script. Para enviar telemetria ao Datadog, exporte `DD_API_KEY` e `DD_SITE`.
+
+### Fluxo manual
+
+#### 1. Criar o cluster
 
 ```bash
-kubectl apply -f k8s/platform/namespaces.yml
+kind create cluster --name fcs-local --config k8s/kind-cluster-config.yaml
 ```
 
-### 3. Aplicar componentes compartilhados
+#### 2. Aplicar namespaces
 
 ```bash
-kubectl apply -f k8s/platform
-kubectl apply -f k8s/observability
+kubectl apply -f k8s/manifests/00-namespaces.yaml
 ```
 
-### 4. Aplicar aplicações
+#### 3. Aplicar componentes compartilhados
 
 ```bash
-kubectl apply -f k8s/apps
+kubectl apply -f k8s/manifests/infra
 ```
 
-### 5. Verificar pods
+#### 4. Aplicar aplicações
+
+```bash
+kubectl apply -f k8s/manifests/apps/fcs-identity
+kubectl apply -f k8s/manifests/apps/fcs-campaign
+kubectl apply -f k8s/manifests/apps/fcs-donations
+kubectl apply -f k8s/manifests/apps/fcs-donation-worker
+kubectl apply -f k8s/manifests/apps/fcs-audit-logs
+kubectl apply -f k8s/manifests/apps/fcs-web
+```
+
+#### 5. Verificar pods
 
 ```bash
 kubectl get pods --all-namespaces
