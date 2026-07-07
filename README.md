@@ -149,6 +149,8 @@ O `docker/docker-compose.yml` deste repositório deve subir o ambiente integrado
 docker compose -f docker/docker-compose.yml up -d
 ```
 
+As imagens dos backends sao consumidas do GHCR (`ghcr.io/group10-tc-01/*:main`). Se os pacotes estiverem privados, autentique antes com `docker login ghcr.io`.
+
 Serviços esperados:
 
 - SQL Server
@@ -156,21 +158,25 @@ Serviços esperados:
 - Keycloak
 - Kafka
 - Kafka UI
-- Datadog Agent
+- Seq
 - OpenTelemetry Collector
-- APIs e workers da plataforma quando as imagens estiverem disponíveis
+- APIs e workers backend da plataforma
 
 URLs úteis em ambiente local:
 
 - Keycloak Admin Console: `http://localhost:8081`
 - Kafka UI: `http://localhost:8082`
-- Datadog: `https://app.datadoghq.com` ou site equivalente da conta
+- Seq: `http://localhost:5341`
 - OpenTelemetry Collector OTLP gRPC: `localhost:4317`
 - OpenTelemetry Collector OTLP HTTP: `localhost:4318`
-- Datadog Agent APM: `localhost:8126`
-- Datadog Agent DogStatsD: `localhost:8125/udp`
 - MongoDB: `localhost:27017`
 - SQL Server: `localhost,1433`
+- Identity API: `http://localhost:64534`
+- Campaign API: `http://localhost:55904`
+- Donations API: `http://localhost:5003`
+- BFF API: `http://localhost:5004`
+- Donation Worker: `http://localhost:5005`
+- Audit Logs Worker: `http://localhost:5006`
 
 > Valores de usuário e senha devem ser mantidos em arquivos `.env` locais ou secrets do ambiente. Não versionar credenciais reais.
 
