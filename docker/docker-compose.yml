@@ -1,0 +1,251 @@
+name: fcs-backend
+
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      SA_PASSWORD: "Your_password123"
+      MSSQL_PID: "Developer"
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P Your_password123 -C -Q \"SELECT 1\" || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  sqlserver-init:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        set -e
+        /opt/mssql-tools18/bin/sqlcmd -S sqlserver -U sa -P Your_password123 -C -Q "IF DB_ID(N'IdentityDb') IS NULL CREATE DATABASE [IdentityDb];"
+        /opt/mssql-tools18/bin/sqlcmd -S sqlserver -U sa -P Your_password123 -C -Q "IF DB_ID(N'CampaignsDb') IS NULL CREATE DATABASE [CampaignsDb];"
+        /opt/mssql-tools18/bin/sqlcmd -S sqlserver -U sa -P Your_password123 -C -Q "IF DB_ID(N'DonationsDb') IS NULL CREATE DATABASE [DonationsDb];"
+        /opt/mssql-tools18/bin/sqlcmd -S sqlserver -U sa -P Your_password123 -C -Q "IF DB_ID(N'KeycloakDb') IS NULL CREATE DATABASE [KeycloakDb];"
+
+  mongodb:
+    image: mongo:8.0
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb-data:/data/db
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server kafka:29092 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  kafka-topics-init:
+    image: confluentinc/cp-kafka:7.5.0
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        set -e
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic donation-received --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic audit-log-requested --partitions 1 --replication-factor 1
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      DYNAMIC_CONFIG_ENABLED: "true"
+    ports:
+      - "8082:8080"
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0.5
+    command: ["start-dev", "--import-realm"]
+    depends_on:
+      sqlserver-init:
+        condition: service_completed_successfully
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_HEALTH_ENABLED: "true"
+      KC_DB: mssql
+      KC_DB_URL: "jdbc:sqlserver://sqlserver:1433;databaseName=KeycloakDb;encrypt=false;trustServerCertificate=true"
+      KC_DB_USERNAME: sa
+      KC_DB_PASSWORD: "Your_password123"
+      KC_TRANSACTION_XA_ENABLED: "false"
+    ports:
+      - "8081:8080"
+    volumes:
+      - ./keycloak:/opt/keycloak/data/import:ro
+
+  seq:
+    image: datalust/seq:latest
+    environment:
+      ACCEPT_EULA: "Y"
+      SEQ_FIRSTRUN_NOAUTHENTICATION: "true"
+    ports:
+      - "5341:80"
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.118.0
+    command:
+      - --config=/etc/otelcol/config.yml
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+    volumes:
+      - ./otel-collector/config.yml:/etc/otelcol/config.yml:ro
+
+  fcs-identity:
+    image: ${FCS_IDENTITY_IMAGE:-ghcr.io/group10-tc-01/fcs-identity:main}
+    depends_on:
+      sqlserver-init:
+        condition: service_completed_successfully
+      kafka-topics-init:
+        condition: service_completed_successfully
+      keycloak:
+        condition: service_started
+      seq:
+        condition: service_started
+    environment:
+      ASPNETCORE_ENVIRONMENT: Docker
+      ASPNETCORE_URLS: http://+:8080
+    ports:
+      - "64534:8080"
+
+  fcs-campaign:
+    image: ${FCS_CAMPAIGN_IMAGE:-ghcr.io/group10-tc-01/fcs-campaign:main}
+    depends_on:
+      sqlserver-init:
+        condition: service_completed_successfully
+      kafka-topics-init:
+        condition: service_completed_successfully
+      keycloak:
+        condition: service_started
+      seq:
+        condition: service_started
+    environment:
+      ASPNETCORE_ENVIRONMENT: Docker
+      ASPNETCORE_URLS: http://+:8080
+    ports:
+      - "55904:8080"
+
+  fcs-donations:
+    image: ${FCS_DONATIONS_IMAGE:-ghcr.io/group10-tc-01/fcs-donations:main}
+    depends_on:
+      sqlserver-init:
+        condition: service_completed_successfully
+      mongodb:
+        condition: service_started
+      kafka-topics-init:
+        condition: service_completed_successfully
+      keycloak:
+        condition: service_started
+      fcs-campaign:
+        condition: service_started
+      seq:
+        condition: service_started
+    environment:
+      ASPNETCORE_ENVIRONMENT: Docker
+      ASPNETCORE_URLS: http://+:8080
+    ports:
+      - "5003:8080"
+
+  fcs-donation-worker:
+    image: ${FCS_DONATION_WORKER_IMAGE:-ghcr.io/group10-tc-01/fcs-donation-worker:main}
+    depends_on:
+      sqlserver-init:
+        condition: service_completed_successfully
+      kafka-topics-init:
+        condition: service_completed_successfully
+      fcs-campaign:
+        condition: service_started
+      seq:
+        condition: service_started
+    environment:
+      DOTNET_ENVIRONMENT: Docker
+      ASPNETCORE_ENVIRONMENT: Docker
+      ASPNETCORE_URLS: http://+:8080
+      Observability__EnableOtlpExporter: "true"
+      Observability__OtlpEndpoint: http://otel-collector:4318
+      Observability__OtlpAuthHeader: ""
+    ports:
+      - "5005:8080"
+
+  fcs-audit-logs:
+    image: ${FCS_AUDIT_LOGS_IMAGE:-ghcr.io/group10-tc-01/fcs-audit-logs:main}
+    depends_on:
+      mongodb:
+        condition: service_started
+      kafka-topics-init:
+        condition: service_completed_successfully
+      seq:
+        condition: service_started
+    environment:
+      DOTNET_ENVIRONMENT: Docker
+      ASPNETCORE_ENVIRONMENT: Docker
+      ASPNETCORE_URLS: http://+:8080
+      Observability__EnableOtlpExporter: "true"
+      Observability__OtlpEndpoint: http://otel-collector:4318
+      Observability__OtlpAuthHeader: ""
+    ports:
+      - "5006:8080"
+
+  fcs-bff:
+    image: ${FCS_BFF_IMAGE:-ghcr.io/group10-tc-01/fcs-bff:main}
+    depends_on:
+      fcs-identity:
+        condition: service_started
+      fcs-campaign:
+        condition: service_started
+      fcs-donations:
+        condition: service_started
+      otel-collector:
+        condition: service_started
+    environment:
+      ASPNETCORE_ENVIRONMENT: Docker
+      ASPNETCORE_URLS: http://+:8080
+    ports:
+      - "5004:8080"
+
+volumes:
+  sqlserver-data:
+  mongodb-data:
