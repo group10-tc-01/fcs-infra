@@ -50,6 +50,10 @@ install -D -o root -g root -m 0600 \
   "$release/k8s/vps/traefik-internal.yaml" \
   "$K3S_MANIFEST_TARGET"
 
+# Apply explicitly as well as installing the K3s auto-manifest. This avoids a
+# stale deploy-controller watch after a purge/recreate of the same HelmChart.
+kubectl apply -f "$K3S_MANIFEST_TARGET"
+
 for _ in $(seq 1 60); do
   if kubectl -n fcs-platform get deployment fcs-traefik-internal >/dev/null 2>&1; then
     break
