@@ -122,6 +122,38 @@ recursos estáticos do Identity ficam neste repositório; o `deployment.yaml` de
 cada aplicação permanece no respectivo repositório e é aplicado pela pipeline
 da aplicação.
 
+### Datadog na VPS
+
+O Agent do K3s e o Cluster Agent são instalados pelo Helm controller do K3s a
+partir de `k8s/vps/manifests/30-datadog.yaml`. O chart fica pinado e usa o
+containerd do K3s; não há porta pública para o Agent.
+
+Como `root`, configure a API key uma única vez. O script lê a chave sem
+mostrá-la na tela e grava somente em `/etc/fcs-infra/datadog-api-key` com modo
+`0600`:
+
+```bash
+bash ops/vps/bootstrap-datadog.sh datadoghq.com
+```
+
+O workflow não recebe a API key. Em cada release, o wrapper cria/atualiza o
+Secret `fcs-infra/fcs-datadog-api-key` usando esse arquivo local. Se já existir
+um Agent Docker para Coolify, valide a coleta duplicada de métricas do host;
+o Agent do K3s fica responsável pelos pods e pelo Autodiscovery das aplicações.
+
+Validação rápida na VPS:
+
+```bash
+kubectl -n fcs-infra get daemonset/fcs-datadog deployment/fcs-datadog-cluster-agent
+kubectl -n fcs-infra get pods -l app.kubernetes.io/instance=fcs-datadog
+```
+
+O dashboard importável está em
+`observability/datadog/fcs-identity-dashboard.json`. Após o primeiro rollout,
+importe esse arquivo em **Dashboards > New Dashboard > Import dashboard** no
+Datadog; ele exibe CPU, memória e réplicas reais do Identity sem exigir uma
+Application Key na pipeline.
+
 ### Purge manual
 
 O purge não é executado pelo workflow. Para remover apenas a plataforma FCS,

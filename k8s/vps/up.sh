@@ -56,6 +56,10 @@ systemctl is-active --quiet k3s || {
   exit 1
 }
 
+if docker ps --format '{{.Image}}' | grep -Eiq 'datadog.*agent'; then
+  echo "Aviso: um Datadog Agent Docker foi detectado; valide a duplicidade de métricas do host após ativar o Agent do K3s."
+fi
+
 for host in "${HOSTS[@]}"; do
   getent ahostsv4 "$host" | awk '{print $1}' | sort -u | grep -qx "$PUBLIC_IP" || {
     echo "DNS inválido para $host; esperado: $PUBLIC_IP" >&2

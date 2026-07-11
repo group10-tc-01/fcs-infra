@@ -2,6 +2,7 @@
 set -euo pipefail
 
 K3S_MANIFEST="/var/lib/rancher/k3s/server/manifests/fcs-traefik-internal.yaml"
+DATADOG_HELMCHART="/var/lib/rancher/k3s/server/manifests/fcs-datadog.yaml"
 COOLIFY_DYNAMIC_CONFIG="/data/coolify/proxy/dynamic/fcs-k3s.yaml"
 
 usage() {
@@ -11,8 +12,9 @@ Uso: sudo bash down.sh --purge PURGE_FCS
 O purge remove permanentemente os recursos FCS desta fase, incluindo os PVCs
 local-path e seus dados: SQL Server, Kafka e MongoDB.
 
-Nao remove o K3s base, Coolify, Docker, DNS, configuracoes de outros projetos
-nem namespaces que nao pertencem a plataforma FCS.
+Nao remove o K3s base, o Datadog Agent do host, Coolify, Docker, DNS,
+configuracoes de outros projetos nem namespaces que nao pertencem a plataforma
+FCS.
 EOF
 }
 
@@ -37,6 +39,10 @@ systemctl is-active --quiet k3s || {
 
 echo "Removendo o roteamento FCS do Coolify..."
 rm -f "$COOLIFY_DYNAMIC_CONFIG"
+
+echo "Removendo o Datadog Agent do K3s..."
+rm -f "$DATADOG_HELMCHART"
+kubectl -n kube-system delete helmchart fcs-datadog --ignore-not-found
 
 echo "Removendo a infraestrutura persistente e seus volumes..."
 kubectl delete namespace fcs-identity --ignore-not-found --wait=true --timeout=300s

@@ -5,6 +5,7 @@ on:
     paths:
       - "k8s/vps/**"
       - "ops/vps/**"
+      - "observability/datadog/**"
       - ".github/workflows/vps-infrastructure-delivery.yml"
   push:
     branches:
@@ -12,6 +13,7 @@ on:
     paths:
       - "k8s/vps/**"
       - "ops/vps/**"
+      - "observability/datadog/**"
       - ".github/workflows/vps-infrastructure-delivery.yml"
   workflow_dispatch:
 
@@ -38,6 +40,7 @@ jobs:
           bash -n k8s/vps/up.sh
           bash -n k8s/vps/down.sh
           bash -n ops/vps/bootstrap-fcs-infra-deployer.sh
+          bash -n ops/vps/bootstrap-datadog.sh
           bash -n ops/vps/fcs-infra-apply
 
       - name: Validate JSON and YAML syntax
@@ -45,6 +48,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 -m json.tool k8s/vps/realm/conexao-solidaria-realm.json >/dev/null
+          python3 -m json.tool observability/datadog/fcs-identity-dashboard.json >/dev/null
           mapfile -t yaml_files < <(find k8s/vps .github/workflows -type f \( -name "*.yaml" -o -name "*.yml" \) -print)
           ruby -e 'require "yaml"; ARGV.each { |path| YAML.parse_stream(File.read(path)) }; puts "YAML syntax OK"' \
             "${yaml_files[@]}"
