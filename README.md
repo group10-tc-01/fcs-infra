@@ -135,7 +135,7 @@ mostrá-la na tela e grava somente em `/etc/fcs-infra/datadog-api-key` com modo
 `0600`:
 
 ```bash
-bash ops/vps/bootstrap-datadog.sh datadoghq.com
+bash ops/vps/bootstrap-datadog.sh us5.datadoghq.com
 ```
 
 O workflow não recebe a API key. Em cada release, o wrapper cria/atualiza o
