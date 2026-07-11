@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: identity-config
+  namespace: fcs-identity
+data:
+  ASPNETCORE_ENVIRONMENT: Production
+  ASPNETCORE_URLS: http://+:8080
+  HttpsRedirection__Enabled: "false"
+  Database__ApplyMigrations: "true"
+  KafkaSettings__BootstrapServers: kafka-service.fcs-infra.svc.cluster.local:29092
+  KafkaSettings__TopicName: audit-log-requested
+  Keycloak__BaseUrl: http://keycloak-service.fcs-infra.svc.cluster.local:8080
+  Keycloak__Realm: conexao-solidaria
+  Keycloak__ClientId: solidarity-api
+  Keycloak__AdminRealm: master
+  Keycloak__AdminClientId: admin-cli
+  Keycloak__Retry__RetryCount: "3"
+  Keycloak__Retry__BaseDelayMilliseconds: "200"
+  ManagerSeed__Enabled: "true"
+  ManagerSeed__FullName: Gestor ONG
+  ManagerSeed__Email: gestor@ong.test
+  Cors__AllowedOrigins__0: https://fcs-web.flaviojcf.com.br
+  Observability__ServiceName: Fcs.Identity
+  Observability__EnableOtlpExporter: "false"

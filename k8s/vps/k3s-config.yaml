@@ -1,0 +1,12 @@
+# Single-node K3s configuration for the FCS VPS.
+# Coolify owns public ports 80 and 443, so packaged Traefik and ServiceLB stay disabled.
+write-kubeconfig-mode: "0640"
+tls-san:
+  - "179.197.65.69"
+disable:
+  - traefik
+  - servicelb
+secrets-encryption: true
+kube-proxy-arg:
+  # Only the Coolify Docker bridge can reach the future internal ingress NodePort.
+  - "nodeport-addresses=10.0.0.1/32"

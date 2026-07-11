@@ -1,0 +1,46 @@
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: fcs-traefik-internal
+  namespace: kube-system
+spec:
+  chart: traefik
+  repo: https://traefik.github.io/charts
+  version: 41.0.1
+  targetNamespace: fcs-platform
+  createNamespace: true
+  valuesContent: |-
+    deployment:
+      replicas: 1
+    ingressClass:
+      enabled: true
+      isDefaultClass: false
+      name: fcs-traefik
+    service:
+      spec:
+        type: NodePort
+    ports:
+      traefik:
+        expose:
+          default: false
+      web:
+        nodePort: 32080
+        forwardedHeaders:
+          trustedIPs:
+            - 10.0.0.0/16
+      websecure:
+        expose:
+          default: false
+    api:
+      dashboard: false
+      insecure: false
+    ingressRoute:
+      dashboard:
+        enabled: false
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
