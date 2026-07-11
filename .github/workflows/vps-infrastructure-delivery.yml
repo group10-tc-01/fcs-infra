@@ -130,7 +130,18 @@ jobs:
           set -euo pipefail
           [[ "$VPS_HOST" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "Invalid VPS_HOST." >&2; exit 1; }
           [[ "$VPS_DEPLOY_USER" =~ ^[a-z_][a-z0-9_-]*$ ]] || { echo "Invalid VPS_DEPLOY_USER." >&2; exit 1; }
-          release_dir="/opt/fcs-infra/releases/$GITHUB_SHA"
+          [[ "$GITHUB_SHA" =~ ^[a-f0-9]{40}$ ]] || { echo "Unexpected release SHA." >&2; exit 1; }
+          [[ "$GITHUB_RUN_ID" =~ ^[0-9]+$ ]] || { echo "Unexpected workflow run ID." >&2; exit 1; }
+          [[ "$GITHUB_RUN_ATTEMPT" =~ ^[0-9]+$ ]] || { echo "Unexpected workflow run attempt." >&2; exit 1; }
+
+          # A failed apply makes its release directory root-owned and immutable.
+          # Include the workflow run and attempt in the hash so a retry never
+          # tries to overwrite that directory. The fixed wrapper already accepts
+          # any 40-hex release identifier under /opt/fcs-infra/releases.
+          release_id="$(printf '%s:%s:%s' "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" | sha256sum | awk '{print substr($1, 1, 40)}')"
+          [[ "$release_id" =~ ^[a-f0-9]{40}$ ]] || { echo "Failed to derive release ID." >&2; exit 1; }
+          release_dir="/opt/fcs-infra/releases/$release_id"
+          echo "Deploying source $GITHUB_SHA as release $release_id (run $GITHUB_RUN_ID/$GITHUB_RUN_ATTEMPT)."
           target="$VPS_DEPLOY_USER@$VPS_HOST"
           ssh_opts=(
             -i "$HOME/.ssh/id_ed25519"

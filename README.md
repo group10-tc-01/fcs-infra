@@ -103,9 +103,11 @@ bash bootstrap-fcs-infra-deployer.sh \
 O bootstrap cria o usuário sem senha `fcs-infra-deployer`, instala o wrapper
 root-owned em `/usr/local/sbin/fcs-infra-apply`, configura o sudoers sem senha
 somente para esse caminho e cria `/opt/fcs-infra/releases`. O wrapper só aceita
-um diretório de release cujo nome seja um SHA de 40 caracteres, rejeita links
-simbólicos, torna a release imutável antes da execução e não aceita comandos
-arbitrários.
+um diretório de release cujo nome seja um identificador hash de 40 caracteres,
+rejeita links simbólicos, torna a release imutável antes da execução e não
+aceita comandos arbitrários. A pipeline deriva esse identificador do commit,
+da execução e da tentativa; assim, uma nova tentativa nunca sobrescreve uma
+release que já foi tornada imutável.
 
 ### Configuração do GitHub
 
