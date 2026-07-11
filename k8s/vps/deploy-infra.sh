@@ -10,6 +10,7 @@ IDENTITY_MANIFEST_DIR="$SCRIPT_DIR/apps/fcs-identity"
 DATADOG_MANIFEST_SOURCE="$MANIFEST_DIR/30-datadog.yaml"
 DATADOG_API_KEY_FILE="${DATADOG_API_KEY_FILE:-/etc/fcs-infra/datadog-api-key}"
 DATADOG_SITE_FILE="${DATADOG_SITE_FILE:-/etc/fcs-infra/datadog-site}"
+DATADOG_DEFAULT_SITE="us5.datadoghq.com"
 DATADOG_SECRET_NAME=fcs-datadog-api-key
 TEMP_FILES=()
 
@@ -60,7 +61,7 @@ configure_datadog() {
     echo "Using the existing Kubernetes Secret $NAMESPACE/$DATADOG_SECRET_NAME."
   fi
 
-  datadog_site=datadoghq.com
+  datadog_site="$DATADOG_DEFAULT_SITE"
   if [[ -r "$DATADOG_SITE_FILE" ]]; then
     datadog_site="$(tr -d '\r\n' < "$DATADOG_SITE_FILE")"
   fi

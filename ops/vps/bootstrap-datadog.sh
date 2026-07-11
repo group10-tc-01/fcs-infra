@@ -4,7 +4,7 @@ set -euo pipefail
 DEST_DIR="/etc/fcs-infra"
 API_KEY_FILE="$DEST_DIR/datadog-api-key"
 SITE_FILE="$DEST_DIR/datadog-site"
-DEFAULT_SITE="datadoghq.com"
+DEFAULT_SITE="us5.datadoghq.com"
 
 usage() {
   echo "Usage: sudo bash bootstrap-datadog.sh [datadog-site]" >&2
