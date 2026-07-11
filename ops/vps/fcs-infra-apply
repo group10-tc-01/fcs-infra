@@ -20,13 +20,14 @@ release="$1"
 [[ -d "$release" ]] || die "release does not exist"
 [[ "$(realpath -e -- "$release")" == "$release" ]] || die "release must be a real directory"
 
-for command in kubectl systemctl docker install realpath find python3; do
+for command in kubectl systemctl docker install realpath find python3 stat; do
   command -v "$command" >/dev/null 2>&1 || die "missing command: $command"
 done
 
 required_files=(
   "$release/k8s/vps/traefik-internal.yaml"
   "$release/k8s/vps/deploy-infra.sh"
+  "$release/k8s/vps/manifests/30-datadog.yaml"
   "$release/k8s/vps/coolify-fcs-k3s.yaml"
   "$release/k8s/vps/realm/conexao-solidaria-realm.json"
 )

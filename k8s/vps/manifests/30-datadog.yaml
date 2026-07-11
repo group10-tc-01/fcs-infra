@@ -1,0 +1,83 @@
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: fcs-datadog
+  namespace: kube-system
+spec:
+  chart: datadog
+  repo: https://helm.datadoghq.com
+  # Pin the chart so an upstream release cannot change the VPS implicitly.
+  version: 3.231.1
+  targetNamespace: fcs-infra
+  createNamespace: false
+  valuesContent: |-
+    datadog:
+      apiKeyExistingSecret: fcs-datadog-api-key
+      site: __DATADOG_SITE__
+      clusterName: fcs-vps-k3s
+      tags:
+        - environment:vps
+        - platform:fcs
+        - cluster:fcs-vps-k3s
+      # The host Agent remains responsible for Docker/Coolify. The K3s Agent
+      # collects Kubernetes/containerd data and pod-level integrations.
+      containerExclude: "image:datadoghq/agent image:gcr.io/datadoghq/agent image:datadog/agent"
+      logs:
+        enabled: false
+        containerCollectAll: false
+      apm:
+        socketEnabled: false
+        portEnabled: false
+      processAgent:
+        processCollection: false
+        containerCollection: true
+      kubeStateMetricsEnabled: false
+      kubeStateMetricsCore:
+        enabled: true
+      orchestratorExplorer:
+        enabled: true
+      prometheusScrape:
+        # Identity uses an explicit OpenMetrics Autodiscovery annotation. Do
+        # not also enable native prometheus.io discovery and scrape twice.
+        enabled: false
+        serviceEndpoints: false
+      criSocketPath: /run/k3s/containerd/containerd.sock
+      containerRuntimeSupport:
+        enabled: true
+      operator:
+        enabled: false
+    agents:
+      containers:
+        agent:
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: k3s-containerd
+          hostPath:
+            path: /run/k3s/containerd/containerd.sock
+            type: Socket
+      volumeMounts:
+        - name: k3s-containerd
+          mountPath: /run/k3s/containerd/containerd.sock
+          readOnly: true
+      useHostNetwork: false
+    clusterAgent:
+      enabled: true
+      replicas: 1
+      admissionController:
+        enabled: false
+      rbac:
+        create: true
+        flareAdditionalPermissions: false
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          cpu: 250m
+          memory: 256Mi
