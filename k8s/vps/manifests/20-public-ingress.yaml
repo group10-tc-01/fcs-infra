@@ -1,0 +1,46 @@
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: kafka-ui-auth
+  namespace: fcs-infra
+spec:
+  basicAuth:
+    secret: kafka-ui-basic-auth
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: keycloak
+  namespace: fcs-infra
+spec:
+  ingressClassName: fcs-traefik
+  rules:
+    - host: fcs-keycloak.flaviojcf.com.br
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: keycloak-service
+                port: { number: 8080 }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kafka-ui
+  namespace: fcs-infra
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: fcs-infra-kafka-ui-auth@kubernetescrd
+spec:
+  ingressClassName: fcs-traefik
+  rules:
+    - host: fcs-kafka.flaviojcf.com.br
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: kafka-ui-service
+                port: { number: 8080 }
