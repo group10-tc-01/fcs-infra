@@ -77,3 +77,60 @@ Namespaces confirmados:
 | `fcs-donation-worker` | Worker de processamento de doações |
 | `fcs-audit-logs` | Worker/API de auditoria centralizada |
 | `fcs-infra` | Keycloak, Kafka, Kafka UI, MongoDB, Datadog Agent, Datadog Cluster Agent e componentes compartilhados |
+
+---
+
+## Entrega da infraestrutura da VPS
+
+O workflow `.github/workflows/vps-infrastructure-delivery.yml` publica uma release
+versionada no K3s da VPS usando um runner hospedado pelo GitHub e SSH. A API do
+Kubernetes continua restrita à própria VPS. O job de entrega usa o environment
+`production`, portanto a aprovação configurada nesse environment é obrigatória.
+
+### Configuração única do host
+
+Como `root`, copie os três arquivos abaixo para a VPS e execute o bootstrap uma
+única vez. A chave pública deve ser a chave dedicada ao workflow; não reutilize a
+chave pessoal.
+
+```bash
+bash bootstrap-fcs-infra-deployer.sh \
+  fcs-infra-apply \
+  fcs-infra-deployer.sudoers \
+  fcs-infra-deployer.pub
+```
+
+O bootstrap cria o usuário sem senha `fcs-infra-deployer`, instala o wrapper
+root-owned em `/usr/local/sbin/fcs-infra-apply`, configura o sudoers sem senha
+somente para esse caminho e cria `/opt/fcs-infra/releases`. O wrapper só aceita
+um diretório de release cujo nome seja um SHA de 40 caracteres, rejeita links
+simbólicos, torna a release imutável antes da execução e não aceita comandos
+arbitrários.
+
+### Configuração do GitHub
+
+No environment `production` do repositório, configure:
+
+- variável `VPS_HOST` com o hostname ou IP da VPS;
+- variável `VPS_DEPLOY_USER` com `fcs-infra-deployer`;
+- secret `FCS_INFRA_SSH_KEY` com a chave privada dedicada, sem passphrase;
+- secret `VPS_KNOWN_HOSTS` com a saída de `ssh-keyscan -H <host>`.
+
+O workflow gera os Secrets de SQL Server, Kafka UI, Keycloak e Identity dentro
+da VPS. Nenhum valor de senha é versionado ou impresso nos logs. O realm e os
+recursos estáticos do Identity ficam neste repositório; o `deployment.yaml` de
+cada aplicação permanece no respectivo repositório e é aplicado pela pipeline
+da aplicação.
+
+### Purge manual
+
+O purge não é executado pelo workflow. Para remover apenas a plataforma FCS,
+preservando K3s base, `kube-system`, StorageClass, Docker, Coolify, DNS e
+projetos pessoais, execute manualmente como `root`:
+
+```bash
+bash k8s/vps/down.sh --purge PURGE_FCS
+```
+
+O token explícito é obrigatório e os PVCs `local-path` serão apagados junto com
+os workloads.

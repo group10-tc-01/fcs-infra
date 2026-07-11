@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: fcs-identity
+  labels:
+    app.kubernetes.io/part-of: fcs
+    app.kubernetes.io/name: fcs-identity
+    environment: vps

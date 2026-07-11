@@ -6,6 +6,7 @@ MANIFEST_DIR="$SCRIPT_DIR/manifests"
 REALM_SOURCE="${1:?Usage: deploy-infra.sh /path/to/conexao-solidaria-realm.json}"
 KUBECTL="${KUBECTL:-kubectl}"
 NAMESPACE=fcs-infra
+IDENTITY_MANIFEST_DIR="$SCRIPT_DIR/apps/fcs-identity"
 
 require() { command -v "$1" >/dev/null 2>&1 || { echo "Missing command: $1" >&2; exit 1; }; }
 require "$KUBECTL"
@@ -69,3 +70,32 @@ htpasswd="banca:$(openssl passwd -apr1 "$kafka_ui_password")"
 "$KUBECTL" -n "$NAMESPACE" rollout status deployment/kafka-ui --timeout=300s
 "$KUBECTL" -n "$NAMESPACE" rollout status deployment/otel-collector --timeout=300s
 "$KUBECTL" apply -f "$MANIFEST_DIR/20-public-ingress.yaml"
+
+echo "Applying static resources for fcs-identity..."
+"$KUBECTL" apply -f "$IDENTITY_MANIFEST_DIR/namespace.yaml"
+
+if ! "$KUBECTL" -n fcs-identity get secret identity-runtime >/dev/null 2>&1; then
+  sql_sa_password="$($KUBECTL -n "$NAMESPACE" get secret fcs-infra-runtime -o jsonpath='{.data.sql-sa-password}' | base64 --decode)"
+  keycloak_admin_password="$($KUBECTL -n "$NAMESPACE" get secret fcs-infra-runtime -o jsonpath='{.data.keycloak-admin-password}' | base64 --decode)"
+  manager_password="$($KUBECTL -n "$NAMESPACE" get secret fcs-infra-runtime -o jsonpath='{.data.manager-password}' | base64 --decode)"
+  identity_connection="Server=sqlserver-service.fcs-infra.svc.cluster.local,1433;Database=IdentityDb;User Id=sa;Password=${sql_sa_password};Encrypt=False;TrustServerCertificate=True"
+
+  "$KUBECTL" -n fcs-identity create secret generic identity-runtime \
+    --from-literal=ConnectionStrings__SqlServer="$identity_connection" \
+    --from-literal=Keycloak__AdminPassword="$keycloak_admin_password" \
+    --from-literal=ManagerSeed__Password="$manager_password"
+fi
+
+if ! "$KUBECTL" -n fcs-identity get secret identity-swagger-basic-auth >/dev/null 2>&1; then
+  swagger_users="$($KUBECTL -n "$NAMESPACE" get secret kafka-ui-basic-auth -o jsonpath='{.data.users}' | base64 --decode)"
+  "$KUBECTL" -n fcs-identity create secret generic identity-swagger-basic-auth \
+    --from-literal=users="$swagger_users"
+fi
+
+# Remove the legacy combined Ingress from the manual/app repository setup. The
+# split resources above intentionally keep /swagger behind Basic Auth.
+"$KUBECTL" -n fcs-identity delete ingress fcs-identity --ignore-not-found
+
+for manifest in configmap.yaml service.yaml rbac.yaml middleware.yaml ingress-api.yaml ingress-swagger.yaml; do
+  "$KUBECTL" apply -f "$IDENTITY_MANIFEST_DIR/$manifest"
+done

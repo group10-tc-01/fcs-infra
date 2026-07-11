@@ -6,17 +6,17 @@ COOLIFY_DYNAMIC_CONFIG="/data/coolify/proxy/dynamic/fcs-k3s.yaml"
 
 usage() {
   cat >&2 <<'EOF'
-Uso: sudo bash down.sh --purge
+Uso: sudo bash down.sh --purge PURGE_FCS
 
---purge remove permanentemente os recursos FCS da fase 2, incluindo os PVCs
+O purge remove permanentemente os recursos FCS desta fase, incluindo os PVCs
 local-path e seus dados: SQL Server, Kafka e MongoDB.
 
-Não remove o K3s base, Coolify, Docker, DNS, configurações de outros projetos
-nem namespaces que não pertencem à plataforma FCS.
+Nao remove o K3s base, Coolify, Docker, DNS, configuracoes de outros projetos
+nem namespaces que nao pertencem a plataforma FCS.
 EOF
 }
 
-if [[ $# -ne 1 || "$1" != "--purge" ]]; then
+if [[ $# -ne 2 || "$1" != "--purge" || "$2" != "PURGE_FCS" ]]; then
   usage
   exit 2
 fi
@@ -26,12 +26,12 @@ if [[ $EUID -ne 0 ]]; then
 fi
 
 command -v kubectl >/dev/null 2>&1 || {
-  echo "Comando obrigatório não encontrado: kubectl" >&2
+  echo "Comando obrigatorio nao encontrado: kubectl" >&2
   exit 1
 }
 
 systemctl is-active --quiet k3s || {
-  echo "O serviço k3s não está ativo." >&2
+  echo "O servico k3s nao esta ativo." >&2
   exit 1
 }
 
@@ -39,6 +39,7 @@ echo "Removendo o roteamento FCS do Coolify..."
 rm -f "$COOLIFY_DYNAMIC_CONFIG"
 
 echo "Removendo a infraestrutura persistente e seus volumes..."
+kubectl delete namespace fcs-identity --ignore-not-found --wait=true --timeout=300s
 kubectl delete namespace fcs-infra --ignore-not-found --wait=true --timeout=300s
 
 echo "Removendo o Traefik interno da plataforma FCS..."
@@ -47,4 +48,4 @@ kubectl -n kube-system delete helmchart fcs-traefik-internal --ignore-not-found
 kubectl delete namespace fcs-platform --ignore-not-found --wait=true --timeout=300s
 
 echo
-echo "Purge concluído. K3s base e Coolify foram preservados."
+echo "Purge concluido. K3s base e Coolify foram preservados."
