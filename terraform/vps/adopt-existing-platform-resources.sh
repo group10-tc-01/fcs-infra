@@ -4,7 +4,7 @@ set -euo pipefail
 # A cancelled Terraform apply can create Kubernetes objects before the remote
 # state is written. Adopt only objects that are present in Kubernetes but absent
 # from state, so normal clean installs keep creating resources declaratively.
-state_resources="$(terraform state list -lock=false)"
+state_resources="$(terraform state list)"
 
 is_managed() {
   grep -Fxq "$1" <<<"$state_resources"
