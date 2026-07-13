@@ -90,7 +90,9 @@ resource "helm_release" "infisical_operator" {
   namespace  = kubernetes_namespace_v1.infisical.metadata[0].name
 
   values = [yamlencode({
-    scopedNamespaces = concat(["fcs-infra"], sort(tolist(local.application_namespaces)))
+    # The shared InfisicalConnection and InfisicalAuth live with the operator,
+    # while the synced secrets live in the FCS namespaces.
+    scopedNamespaces = concat(["infisical-operator-system", "fcs-infra"], sort(tolist(local.application_namespaces)))
     scopedRBAC       = true
     installCRDs      = true
   })]
