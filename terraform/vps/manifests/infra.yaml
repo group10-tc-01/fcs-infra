@@ -401,15 +401,17 @@ data:
     processors:
       batch: {}
     exporters:
-      debug:
-        verbosity: basic
+      datadog:
+        api:
+          site: us5.datadoghq.com
+          key: ${env:DD_API_KEY}
     service:
       telemetry:
         logs: { level: info }
       pipelines:
-        traces: { receivers: [otlp], processors: [batch], exporters: [debug] }
-        metrics: { receivers: [otlp], processors: [batch], exporters: [debug] }
-        logs: { receivers: [otlp], processors: [batch], exporters: [debug] }
+        traces: { receivers: [otlp], processors: [batch], exporters: [datadog] }
+        metrics: { receivers: [otlp], processors: [batch], exporters: [datadog] }
+        logs: { receivers: [otlp], processors: [batch], exporters: [datadog] }
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -430,6 +432,12 @@ spec:
         - name: otel-collector
           image: otel/opentelemetry-collector-contrib:0.118.0
           args: [--config=/etc/otelcol/config.yml]
+          env:
+            - name: DD_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: fcs-datadog-api-key
+                  key: api-key
           ports:
             - { containerPort: 4317, name: otlp-grpc }
             - { containerPort: 4318, name: otlp-http }
