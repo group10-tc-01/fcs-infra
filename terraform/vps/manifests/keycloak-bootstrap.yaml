@@ -1,0 +1,59 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keycloak-realm-config
+  namespace: fcs-infra
+data:
+  conexao-solidaria-realm.json: |
+    {
+      "realm": "conexao-solidaria",
+      "enabled": true,
+      "roles": { "realm": [{ "name": "Doador" }, { "name": "GestorONG" }] },
+      "clients": [{
+        "clientId": "solidarity-api",
+        "name": "Solidarity API POC",
+        "enabled": true,
+        "publicClient": true,
+        "directAccessGrantsEnabled": true,
+        "standardFlowEnabled": true,
+        "protocol": "openid-connect",
+        "redirectUris": ["https://fcs-web.flaviojcf.com.br/*"],
+        "webOrigins": ["https://fcs-web.flaviojcf.com.br"],
+        "protocolMappers": []
+      }]
+    }
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: keycloak-bootstrap
+  namespace: fcs-infra
+spec:
+  backoffLimit: 5
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: seed-manager
+          image: quay.io/keycloak/keycloak:24.0.5
+          command: [/bin/bash, -ec]
+          args:
+            - |
+              for attempt in $(seq 1 60); do
+                /opt/keycloak/bin/kcadm.sh config credentials --server http://keycloak-service:8080 --realm master --user admin --password "$KEYCLOAK_ADMIN_PASSWORD" && break
+                [ "$attempt" -eq 60 ] && exit 1
+                sleep 5
+              done
+              users="$(/opt/keycloak/bin/kcadm.sh get users -r conexao-solidaria -q username=gestor@ong.test)"
+              if ! grep -q 'gestor@ong.test' <<< "$users"; then
+                /opt/keycloak/bin/kcadm.sh create users -r conexao-solidaria -s username=gestor@ong.test -s email=gestor@ong.test -s enabled=true -s emailVerified=true
+              fi
+              /opt/keycloak/bin/kcadm.sh set-password -r conexao-solidaria --username gestor@ong.test --new-password "$MANAGER_PASSWORD"
+              /opt/keycloak/bin/kcadm.sh add-roles -r conexao-solidaria --uusername gestor@ong.test --rolename GestorONG
+          env:
+            - name: KEYCLOAK_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: fcs-infra-runtime, key: keycloak-admin-password }
+            - name: MANAGER_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: fcs-infra-runtime, key: manager-password }
