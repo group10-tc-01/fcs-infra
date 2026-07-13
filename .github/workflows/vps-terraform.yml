@@ -60,7 +60,7 @@ jobs:
           TF_VAR_hostinger_api_token: ${{ secrets.HOSTINGER_API_TOKEN }}
           TF_VAR_vps_ssh_private_key: ${{ secrets.VPS_BOOTSTRAP_SSH_KEY }}
           TF_VAR_vps_host: 192.0.2.10
-          TF_VAR_infisical_operator_chart_version: 0.10.11
+          TF_VAR_infisical_operator_chart_version: 0.11.3
           TF_VAR_ssh_allowed_cidrs: '["192.0.2.0/24"]'
         shell: bash
         run: |
