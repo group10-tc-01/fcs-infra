@@ -66,7 +66,6 @@ resource "helm_release" "traefik" {
         port        = 8443
         exposedPort = 443
         expose      = { default = true }
-        tls         = { enabled = true }
       }
     }
   })]
