@@ -34,6 +34,7 @@ Crie o environment `production`, com aprovação obrigatória, e adicione:
 |---|---|
 | `INFISICAL_UNIVERSAL_AUTH_CLIENT_ID` | Universal Auth da Machine Identity. |
 | `INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET` | Credencial da mesma Machine Identity. |
+| `VPS_KNOWN_HOSTS` | Chaves públicas SSH da VPS; atualize-o depois de cada reimage. |
 
 Configure as **Variables**:
 
