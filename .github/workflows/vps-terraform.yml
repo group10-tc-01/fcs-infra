@@ -126,10 +126,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if ssh -i "$HOME/.ssh/id_ed25519" -o BatchMode=yes -o ConnectTimeout=10 \
-            "$VPS_BOOTSTRAP_USER@$VPS_HOST" \
-            "test -r /etc/rancher/k3s/k3s.yaml && id -u '$VPS_DEPLOY_USER' >/dev/null 2>&1"; then
-            echo "K3s bootstrap already exists; skipping host bootstrap."
+          state_resources="$(terraform state list)"
+          if grep -q '^module\.cluster\[0\]\.' <<< "$state_resources"; then
+            echo "Kubernetes resources already exist in state; skipping host bootstrap."
           else
             terraform apply -auto-approve -var=apply_cluster=false -var=apply_platform=false
           fi
@@ -137,15 +136,31 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          scp -i "$HOME/.ssh/id_ed25519" "$VPS_DEPLOY_USER@$VPS_HOST:/etc/rancher/k3s/k3s.yaml" .kube/fcs-vps.yaml
-          chmod 0600 .kube/fcs-vps.yaml
-          ssh -i "$HOME/.ssh/id_ed25519" -N -L 6443:127.0.0.1:6443 "$VPS_DEPLOY_USER@$VPS_HOST" &
-          echo $! > "$RUNNER_TEMP/fcs-k3s-tunnel.pid"
-          for _ in $(seq 1 30); do
-            kubectl --kubeconfig=.kube/fcs-vps.yaml get nodes >/dev/null 2>&1 && exit 0
-            sleep 2
+          for attempt in $(seq 1 6); do
+            if scp -i "$HOME/.ssh/id_ed25519" -o ConnectTimeout=10 \
+              "$VPS_DEPLOY_USER@$VPS_HOST:/etc/rancher/k3s/k3s.yaml" .kube/fcs-vps.yaml; then
+              chmod 0600 .kube/fcs-vps.yaml
+              ssh -i "$HOME/.ssh/id_ed25519" -o ConnectTimeout=10 -o ExitOnForwardFailure=yes \
+                -N -L 6443:127.0.0.1:6443 "$VPS_DEPLOY_USER@$VPS_HOST" &
+              tunnel_pid=$!
+              for _ in $(seq 1 10); do
+                if kubectl --kubeconfig=.kube/fcs-vps.yaml get nodes >/dev/null 2>&1; then
+                  echo "$tunnel_pid" > "$RUNNER_TEMP/fcs-k3s-tunnel.pid"
+                  exit 0
+                fi
+                if ! kill -0 "$tunnel_pid" 2>/dev/null; then
+                  break
+                fi
+                sleep 2
+              done
+              kill "$tunnel_pid" 2>/dev/null || true
+            fi
+            if [ "$attempt" -eq 6 ]; then
+              echo "Unable to establish the private Kubernetes tunnel after $attempt attempts." >&2
+              exit 1
+            fi
+            sleep $((attempt * 5))
           done
-          exit 1
       - name: Install cluster foundation
         shell: bash
         run: terraform apply -auto-approve -var=apply_cluster=true -var=apply_platform=false
