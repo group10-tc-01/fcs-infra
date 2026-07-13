@@ -147,7 +147,7 @@ jobs:
           rm -f "$credentials"
       - name: Adopt interrupted platform resources
         shell: bash
-        run: ./adopt-existing-platform-resources.sh
+        run: bash ./adopt-existing-platform-resources.sh
       - name: Apply shared FCS platform
         shell: bash
         run: terraform apply -auto-approve -var=apply_cluster=true -var=apply_platform=true
