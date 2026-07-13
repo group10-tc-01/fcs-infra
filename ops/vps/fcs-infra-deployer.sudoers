@@ -1,1 +1,0 @@
-fcs-infra-deployer ALL=(root) NOPASSWD: /usr/local/sbin/fcs-infra-apply *

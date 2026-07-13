@@ -1,0 +1,169 @@
+name: FCS VPS Terraform
+
+on:
+  pull_request:
+    paths:
+      - "terraform/vps/**"
+      - "terraform/vps/manifests/**"
+      - ".github/workflows/vps-terraform.yml"
+  push:
+    branches: [main]
+    paths:
+      - "terraform/vps/**"
+      - "terraform/vps/manifests/**"
+      - ".github/workflows/vps-terraform.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fcs-vps-production
+  cancel-in-progress: false
+
+env:
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+  TF_VAR_vps_host: ${{ vars.VPS_HOST }}
+  TF_VAR_vps_ssh_user: ${{ vars.VPS_BOOTSTRAP_USER }}
+  TF_VAR_vps_deploy_user: ${{ vars.VPS_DEPLOY_USER }}
+  TF_VAR_domain: flaviojcf.com.br
+  TF_VAR_acme_email: ${{ vars.ACME_EMAIL }}
+  TF_VAR_infisical_project_slug: ${{ vars.INFISICAL_PROJECT_SLUG }}
+  TF_VAR_infisical_environment_slug: prod
+  TF_VAR_infisical_operator_chart_version: ${{ vars.INFISICAL_OPERATOR_CHART_VERSION }}
+  TF_VAR_ssh_allowed_cidrs: ${{ vars.VPS_SSH_ALLOWED_CIDRS }}
+
+jobs:
+  validate:
+    name: Validate Terraform
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform/vps
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.14.7
+      - name: Format and validate configuration
+        run: |
+          terraform fmt -check -recursive
+          terraform init -backend=false -input=false
+          terraform validate
+      - name: Plan host bootstrap only
+        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false }}
+        env:
+          TF_TOKEN_app_terraform_io: ${{ secrets.HCP_TERRAFORM_TOKEN }}
+          HCP_TERRAFORM_ORGANIZATION: ${{ vars.HCP_TERRAFORM_ORGANIZATION }}
+          HCP_TERRAFORM_WORKSPACE: ${{ vars.HCP_TERRAFORM_WORKSPACE }}
+          TF_VAR_hostinger_api_token: ${{ secrets.HOSTINGER_API_TOKEN }}
+          TF_VAR_vps_ssh_private_key: ${{ secrets.VPS_BOOTSTRAP_SSH_KEY }}
+          TF_VAR_vps_host: 192.0.2.10
+          TF_VAR_infisical_operator_chart_version: 0.10.11
+          TF_VAR_ssh_allowed_cidrs: '["192.0.2.0/24"]'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$TF_TOKEN_app_terraform_io"
+          test -n "$HCP_TERRAFORM_ORGANIZATION"
+          test -n "$HCP_TERRAFORM_WORKSPACE"
+          cat > backend.hcl <<EOF
+          hostname     = "app.terraform.io"
+          organization = "$HCP_TERRAFORM_ORGANIZATION"
+          workspaces { name = "$HCP_TERRAFORM_WORKSPACE" }
+          EOF
+          terraform init -reconfigure -input=false -backend-config=backend.hcl
+          terraform plan -refresh=false -lock=false -var=apply_cluster=false -var=apply_platform=false
+
+  apply:
+    name: Bootstrap and apply VPS platform
+    if: github.event_name != 'pull_request'
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: production
+    defaults:
+      run:
+        working-directory: terraform/vps
+    env:
+      TF_TOKEN_app_terraform_io: ${{ secrets.HCP_TERRAFORM_TOKEN }}
+      TF_VAR_hostinger_api_token: ${{ secrets.HOSTINGER_API_TOKEN }}
+      TF_VAR_vps_ssh_private_key: ${{ secrets.VPS_BOOTSTRAP_SSH_KEY }}
+      INFISICAL_UNIVERSAL_AUTH_CLIENT_ID: ${{ secrets.INFISICAL_UNIVERSAL_AUTH_CLIENT_ID }}
+      INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET: ${{ secrets.INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET }}
+      VPS_HOST: ${{ vars.VPS_HOST }}
+      VPS_BOOTSTRAP_USER: ${{ vars.VPS_BOOTSTRAP_USER }}
+      VPS_DEPLOY_USER: ${{ vars.VPS_DEPLOY_USER }}
+      HCP_TERRAFORM_ORGANIZATION: ${{ vars.HCP_TERRAFORM_ORGANIZATION }}
+      HCP_TERRAFORM_WORKSPACE: ${{ vars.HCP_TERRAFORM_WORKSPACE }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.14.7
+      - name: Validate protected configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          for value in "$VPS_HOST" "$VPS_BOOTSTRAP_USER" "$VPS_DEPLOY_USER" "$HCP_TERRAFORM_ORGANIZATION" "$HCP_TERRAFORM_WORKSPACE" "$TF_VAR_acme_email" "$TF_VAR_infisical_project_slug" "$TF_VAR_infisical_operator_chart_version" "$TF_VAR_ssh_allowed_cidrs"; do
+            test -n "$value" || { echo "A production variable is not configured." >&2; exit 1; }
+          done
+      - name: Configure SSH and HCP backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -d -m 0700 "$HOME/.ssh" .kube
+          printf '%s\n' "$TF_VAR_vps_ssh_private_key" > "$HOME/.ssh/id_ed25519"
+          chmod 0600 "$HOME/.ssh/id_ed25519"
+          ssh-keyscan -H "$VPS_HOST" >> "$HOME/.ssh/known_hosts"
+          cat > backend.hcl <<EOF
+          hostname     = "app.terraform.io"
+          organization = "$HCP_TERRAFORM_ORGANIZATION"
+          workspaces { name = "$HCP_TERRAFORM_WORKSPACE" }
+          EOF
+          terraform init -input=false -backend-config=backend.hcl
+      - name: Bootstrap host and K3s
+        shell: bash
+        run: terraform apply -auto-approve -var=apply_cluster=false -var=apply_platform=false
+      - name: Open private Kubernetes tunnel
+        shell: bash
+        run: |
+          set -euo pipefail
+          scp -i "$HOME/.ssh/id_ed25519" "$VPS_DEPLOY_USER@$VPS_HOST:/etc/rancher/k3s/k3s.yaml" .kube/fcs-vps.yaml
+          chmod 0600 .kube/fcs-vps.yaml
+          ssh -i "$HOME/.ssh/id_ed25519" -N -L 6443:127.0.0.1:6443 "$VPS_DEPLOY_USER@$VPS_HOST" &
+          echo $! > "$RUNNER_TEMP/fcs-k3s-tunnel.pid"
+          for _ in $(seq 1 30); do
+            kubectl --kubeconfig=.kube/fcs-vps.yaml get nodes >/dev/null 2>&1 && exit 0
+            sleep 2
+          done
+          exit 1
+      - name: Install cluster foundation
+        shell: bash
+        run: terraform apply -auto-approve -var=apply_cluster=true -var=apply_platform=false
+      - name: Inject Infisical bootstrap identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          credentials="$RUNNER_TEMP/infisical-universal-auth.env"
+          umask 077
+          printf 'clientId=%s\nclientSecret=%s\n' "$INFISICAL_UNIVERSAL_AUTH_CLIENT_ID" "$INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET" > "$credentials"
+          kubectl --kubeconfig=.kube/fcs-vps.yaml -n infisical-operator-system create secret generic infisical-universal-auth \
+            --from-env-file="$credentials" --dry-run=client -o yaml | kubectl --kubeconfig=.kube/fcs-vps.yaml apply -f -
+          rm -f "$credentials"
+      - name: Apply shared FCS platform
+        shell: bash
+        run: terraform apply -auto-approve -var=apply_cluster=true -var=apply_platform=true
+      - name: Verify platform rollout
+        shell: bash
+        run: |
+          set -euo pipefail
+          kubectl --kubeconfig=.kube/fcs-vps.yaml -n fcs-infra rollout status statefulset/sqlserver --timeout=300s
+          kubectl --kubeconfig=.kube/fcs-vps.yaml -n fcs-infra rollout status statefulset/kafka --timeout=300s
+          kubectl --kubeconfig=.kube/fcs-vps.yaml -n fcs-infra rollout status deployment/keycloak --timeout=300s
+          kubectl --kubeconfig=.kube/fcs-vps.yaml -n fcs-infra get jobs sqlserver-init kafka-topics-init keycloak-bootstrap
+      - name: Close private Kubernetes tunnel
+        if: always()
+        shell: bash
+        run: |
+          test -f "$RUNNER_TEMP/fcs-k3s-tunnel.pid" && kill "$(cat "$RUNNER_TEMP/fcs-k3s-tunnel.pid")" || true

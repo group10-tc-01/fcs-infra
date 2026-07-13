@@ -2,6 +2,17 @@
 docker/observability/.env
 k8s/.env
 
+# Terraform state and local backend/bootstrap configuration.
+terraform/**/.terraform/
+terraform/**/*.tfstate
+terraform/**/*.tfstate.*
+terraform/**/backend.hcl
+terraform/**/terraform.tfvars
+terraform/**/.kube/
+
+# Local Infisical import files may contain real values. Keep only templates tracked.
+infisical/imports/*.env
+
 coolify-api.http
 coolify/
 .vs
