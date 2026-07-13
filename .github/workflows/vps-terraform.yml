@@ -103,6 +103,9 @@ jobs:
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.14.7
+          # The self-hosted runner does not provide Node.js. The default wrapper
+          # from setup-terraform requires it, while Terraform itself does not.
+          terraform_wrapper: false
       - name: Validate protected configuration
         shell: bash
         run: |
