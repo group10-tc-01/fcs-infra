@@ -13,7 +13,7 @@ fi
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y --no-install-recommends ca-certificates curl docker.io ufw
+apt-get install -y --no-install-recommends ca-certificates curl docker.io ufw unzip
 systemctl enable --now docker
 
 install -d -m 0700 /etc/rancher/k3s
