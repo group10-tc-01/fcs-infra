@@ -122,9 +122,17 @@ jobs:
           workspaces { name = "$HCP_TERRAFORM_WORKSPACE" }
           EOF
           terraform init -input=false -backend-config=backend.hcl
-      - name: Bootstrap host and K3s
+      - name: Bootstrap host and K3s when required
         shell: bash
-        run: terraform apply -auto-approve -var=apply_cluster=false -var=apply_platform=false
+        run: |
+          set -euo pipefail
+          if ssh -i "$HOME/.ssh/id_ed25519" -o BatchMode=yes -o ConnectTimeout=10 \
+            "$VPS_BOOTSTRAP_USER@$VPS_HOST" \
+            "test -r /etc/rancher/k3s/k3s.yaml && id -u '$VPS_DEPLOY_USER' >/dev/null 2>&1"; then
+            echo "K3s bootstrap already exists; skipping host bootstrap."
+          else
+            terraform apply -auto-approve -var=apply_cluster=false -var=apply_platform=false
+          fi
       - name: Open private Kubernetes tunnel
         shell: bash
         run: |
