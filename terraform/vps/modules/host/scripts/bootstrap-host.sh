@@ -65,9 +65,10 @@ ufw default allow outgoing
 IFS=',' read -r -a cidrs <<< "$SSH_ALLOWED_CIDRS"
 for cidr in "${cidrs[@]}"; do
   if [[ "$cidr" == "0.0.0.0/0" ]]; then
-    # GitHub-hosted runners do not provide static egress. Key-only SSH plus
-    # UFW rate limiting is the safe default until a fixed egress is available.
-    ufw limit 22/tcp
+    # GitHub-hosted runners share dynamic egress. UFW connection limiting can
+    # block other runners behind the same address, so SSH remains key-only but
+    # is not rate-limited until a runner with fixed egress is available.
+    ufw allow 22/tcp
   else
     ufw allow from "$cidr" to any port 22 proto tcp
   fi
