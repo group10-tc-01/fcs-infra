@@ -80,7 +80,7 @@ jobs:
     name: Bootstrap and apply VPS platform
     if: github.event_name != 'pull_request'
     needs: validate
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, fcs-vps]
     environment: production
     defaults:
       run:
@@ -89,9 +89,10 @@ jobs:
       TF_TOKEN_app_terraform_io: ${{ secrets.HCP_TERRAFORM_TOKEN }}
       TF_VAR_hostinger_api_token: ${{ secrets.HOSTINGER_API_TOKEN }}
       TF_VAR_vps_ssh_private_key: ${{ secrets.VPS_BOOTSTRAP_SSH_KEY }}
+      TF_VAR_kubeconfig_path: /etc/rancher/k3s/k3s.yaml
+      KUBECONFIG: /etc/rancher/k3s/k3s.yaml
       INFISICAL_UNIVERSAL_AUTH_CLIENT_ID: ${{ secrets.INFISICAL_UNIVERSAL_AUTH_CLIENT_ID }}
       INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET: ${{ secrets.INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET }}
-      VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
       VPS_HOST: ${{ vars.VPS_HOST }}
       VPS_BOOTSTRAP_USER: ${{ vars.VPS_BOOTSTRAP_USER }}
       VPS_DEPLOY_USER: ${{ vars.VPS_DEPLOY_USER }}
@@ -106,18 +107,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for value in "$VPS_HOST" "$VPS_BOOTSTRAP_USER" "$VPS_DEPLOY_USER" "$VPS_KNOWN_HOSTS" "$HCP_TERRAFORM_ORGANIZATION" "$HCP_TERRAFORM_WORKSPACE" "$TF_VAR_acme_email" "$TF_VAR_infisical_project_slug" "$TF_VAR_infisical_operator_chart_version" "$TF_VAR_ssh_allowed_cidrs"; do
+          for value in "$VPS_HOST" "$VPS_BOOTSTRAP_USER" "$VPS_DEPLOY_USER" "$HCP_TERRAFORM_ORGANIZATION" "$HCP_TERRAFORM_WORKSPACE" "$TF_VAR_acme_email" "$TF_VAR_infisical_project_slug" "$TF_VAR_infisical_operator_chart_version" "$TF_VAR_ssh_allowed_cidrs"; do
             test -n "$value" || { echo "A production variable is not configured." >&2; exit 1; }
           done
-      - name: Configure SSH and HCP backend
+      - name: Configure HCP backend
         shell: bash
         run: |
           set -euo pipefail
-          install -d -m 0700 "$HOME/.ssh" .kube
-          printf '%s\n' "$TF_VAR_vps_ssh_private_key" > "$HOME/.ssh/id_ed25519"
-          chmod 0600 "$HOME/.ssh/id_ed25519"
-          printf '%s\n' "$VPS_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
-          chmod 0600 "$HOME/.ssh/known_hosts"
           cat > backend.hcl <<EOF
           hostname     = "app.terraform.io"
           organization = "$HCP_TERRAFORM_ORGANIZATION"
@@ -134,35 +130,6 @@ jobs:
           else
             terraform apply -auto-approve -var=apply_cluster=false -var=apply_platform=false
           fi
-      - name: Open private Kubernetes tunnel
-        shell: bash
-        run: |
-          set -euo pipefail
-          for attempt in $(seq 1 6); do
-            if scp -i "$HOME/.ssh/id_ed25519" -o ConnectTimeout=10 \
-              "$VPS_DEPLOY_USER@$VPS_HOST:/etc/rancher/k3s/k3s.yaml" .kube/fcs-vps.yaml; then
-              chmod 0600 .kube/fcs-vps.yaml
-              ssh -i "$HOME/.ssh/id_ed25519" -o ConnectTimeout=10 -o ExitOnForwardFailure=yes \
-                -N -L 6443:127.0.0.1:6443 "$VPS_DEPLOY_USER@$VPS_HOST" &
-              tunnel_pid=$!
-              for _ in $(seq 1 10); do
-                if kubectl --kubeconfig=.kube/fcs-vps.yaml get nodes >/dev/null 2>&1; then
-                  echo "$tunnel_pid" > "$RUNNER_TEMP/fcs-k3s-tunnel.pid"
-                  exit 0
-                fi
-                if ! kill -0 "$tunnel_pid" 2>/dev/null; then
-                  break
-                fi
-                sleep 2
-              done
-              kill "$tunnel_pid" 2>/dev/null || true
-            fi
-            if [ "$attempt" -eq 6 ]; then
-              echo "Unable to establish the private Kubernetes tunnel after $attempt attempts." >&2
-              exit 1
-            fi
-            sleep $((attempt * 5))
-          done
       - name: Install cluster foundation
         shell: bash
         run: terraform apply -auto-approve -var=apply_cluster=true -var=apply_platform=false
@@ -173,8 +140,8 @@ jobs:
           credentials="$RUNNER_TEMP/infisical-universal-auth.env"
           umask 077
           printf 'clientId=%s\nclientSecret=%s\n' "$INFISICAL_UNIVERSAL_AUTH_CLIENT_ID" "$INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET" > "$credentials"
-          kubectl --kubeconfig=.kube/fcs-vps.yaml -n infisical-operator-system create secret generic infisical-universal-auth \
-            --from-env-file="$credentials" --dry-run=client -o yaml | kubectl --kubeconfig=.kube/fcs-vps.yaml apply -f -
+          kubectl -n infisical-operator-system create secret generic infisical-universal-auth \
+            --from-env-file="$credentials" --dry-run=client -o yaml | kubectl apply -f -
           rm -f "$credentials"
       - name: Apply shared FCS platform
         shell: bash
@@ -183,12 +150,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          kubectl --kubeconfig=.kube/fcs-vps.yaml -n fcs-infra rollout status statefulset/sqlserver --timeout=300s
-          kubectl --kubeconfig=.kube/fcs-vps.yaml -n fcs-infra rollout status statefulset/kafka --timeout=300s
-          kubectl --kubeconfig=.kube/fcs-vps.yaml -n fcs-infra rollout status deployment/keycloak --timeout=300s
-          kubectl --kubeconfig=.kube/fcs-vps.yaml -n fcs-infra get jobs sqlserver-init kafka-topics-init keycloak-bootstrap
-      - name: Close private Kubernetes tunnel
-        if: always()
-        shell: bash
-        run: |
-          test -f "$RUNNER_TEMP/fcs-k3s-tunnel.pid" && kill "$(cat "$RUNNER_TEMP/fcs-k3s-tunnel.pid")" || true
+          kubectl -n fcs-infra rollout status statefulset/sqlserver --timeout=300s
+          kubectl -n fcs-infra rollout status statefulset/kafka --timeout=300s
+          kubectl -n fcs-infra rollout status deployment/keycloak --timeout=300s
+          kubectl -n fcs-infra get jobs sqlserver-init kafka-topics-init keycloak-bootstrap
