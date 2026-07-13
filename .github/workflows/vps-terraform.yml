@@ -145,6 +145,9 @@ jobs:
           kubectl -n infisical-operator-system create secret generic infisical-universal-auth \
             --from-env-file="$credentials" --dry-run=client -o yaml | kubectl apply -f -
           rm -f "$credentials"
+      - name: Adopt interrupted platform resources
+        shell: bash
+        run: ./adopt-existing-platform-resources.sh
       - name: Apply shared FCS platform
         shell: bash
         run: terraform apply -auto-approve -var=apply_cluster=true -var=apply_platform=true
