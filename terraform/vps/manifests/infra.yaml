@@ -318,8 +318,7 @@ spec:
               valueFrom:
                 secretKeyRef: { name: fcs-infra-runtime, key: keycloak-admin-password }
             - { name: KC_HEALTH_ENABLED, value: "true" }
-            - { name: KC_PROXY_HEADERS, value: xforwarded }
-            - { name: KC_HOSTNAME, value: keycloak-service.fcs-infra.svc.cluster.local }
+            - { name: KC_HOSTNAME, value: http://keycloak-service.fcs-infra.svc.cluster.local:8080 }
             - { name: KC_DB, value: mssql }
             - { name: KC_DB_URL, value: jdbc:sqlserver://sqlserver-service:1433;databaseName=KeycloakDb;encrypt=false;trustServerCertificate=true }
             - { name: KC_DB_USERNAME, value: sa }
