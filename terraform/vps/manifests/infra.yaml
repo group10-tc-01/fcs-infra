@@ -319,7 +319,7 @@ spec:
                 secretKeyRef: { name: fcs-infra-runtime, key: keycloak-admin-password }
             - { name: KC_HEALTH_ENABLED, value: "true" }
             - { name: KC_PROXY_HEADERS, value: xforwarded }
-            - { name: KC_HOSTNAME, value: https://fcs-keycloak.flaviojcf.com.br }
+            - { name: KC_HOSTNAME, value: fcs-keycloak.flaviojcf.com.br }
             - { name: KC_HOSTNAME_BACKCHANNEL_DYNAMIC, value: "true" }
             - { name: KC_DB, value: mssql }
             - { name: KC_DB_URL, value: jdbc:sqlserver://sqlserver-service:1433;databaseName=KeycloakDb;encrypt=false;trustServerCertificate=true }
