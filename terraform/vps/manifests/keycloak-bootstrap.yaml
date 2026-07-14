@@ -26,7 +26,7 @@ data:
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: keycloak-bootstrap
+  name: keycloak-bootstrap-v2
   namespace: fcs-infra
 spec:
   backoffLimit: 5
@@ -46,8 +46,11 @@ spec:
               done
               users="$(/opt/keycloak/bin/kcadm.sh get users -r conexao-solidaria -q username=gestor@ong.test)"
               if ! grep -q 'gestor@ong.test' <<< "$users"; then
-                /opt/keycloak/bin/kcadm.sh create users -r conexao-solidaria -s username=gestor@ong.test -s email=gestor@ong.test -s enabled=true -s emailVerified=true
+                /opt/keycloak/bin/kcadm.sh create users -r conexao-solidaria -s username=gestor@ong.test -s email=gestor@ong.test -s firstName=Gestor -s lastName=ONG -s enabled=true -s emailVerified=true
               fi
+              user_id="$(/opt/keycloak/bin/kcadm.sh get users -r conexao-solidaria -q username=gestor@ong.test | sed -n 's/.*"id" : "\([^"]*\)".*/\1/p' | head -n 1)"
+              [ -n "$user_id" ]
+              /opt/keycloak/bin/kcadm.sh update "users/$user_id" -r conexao-solidaria -s firstName=Gestor -s lastName=ONG -s enabled=true -s emailVerified=true -s 'requiredActions=[]'
               /opt/keycloak/bin/kcadm.sh set-password -r conexao-solidaria --username gestor@ong.test --new-password "$MANAGER_PASSWORD"
               /opt/keycloak/bin/kcadm.sh add-roles -r conexao-solidaria --uusername gestor@ong.test --rolename GestorONG
           env:
