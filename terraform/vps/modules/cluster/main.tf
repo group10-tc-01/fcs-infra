@@ -6,7 +6,8 @@ locals {
     "fcs-donation-worker",
     "fcs-audit-logs",
     "fcs-bff",
-    "fcs-web"
+    "fcs-web",
+    "fcs-developer-portal"
   ])
 }
 
