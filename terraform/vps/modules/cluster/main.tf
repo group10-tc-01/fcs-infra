@@ -4,7 +4,9 @@ locals {
     "fcs-campaigns",
     "fcs-donations",
     "fcs-donation-worker",
-    "fcs-audit-logs"
+    "fcs-audit-logs",
+    "fcs-bff",
+    "fcs-web"
   ])
 }
 
