@@ -158,4 +158,5 @@ jobs:
           kubectl -n fcs-infra rollout status statefulset/sqlserver --timeout=300s
           kubectl -n fcs-infra rollout status statefulset/kafka --timeout=300s
           kubectl -n fcs-infra rollout status deployment/keycloak --timeout=300s
-          kubectl -n fcs-infra get jobs sqlserver-init kafka-topics-init keycloak-bootstrap
+          kubectl -n fcs-infra wait --for=condition=complete --timeout=300s job/sqlserver-init job/kafka-topics-init job/keycloak-bootstrap-v2
+          kubectl -n fcs-infra get jobs sqlserver-init kafka-topics-init keycloak-bootstrap-v2
