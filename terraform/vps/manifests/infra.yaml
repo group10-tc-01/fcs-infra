@@ -318,7 +318,9 @@ spec:
               valueFrom:
                 secretKeyRef: { name: fcs-infra-runtime, key: keycloak-admin-password }
             - { name: KC_HEALTH_ENABLED, value: "true" }
-            - { name: KC_HOSTNAME, value: http://keycloak-service.fcs-infra.svc.cluster.local:8080 }
+            - { name: KC_PROXY_HEADERS, value: xforwarded }
+            - { name: KC_HOSTNAME, value: https://fcs-keycloak.flaviojcf.com.br }
+            - { name: KC_HOSTNAME_BACKCHANNEL_DYNAMIC, value: "true" }
             - { name: KC_DB, value: mssql }
             - { name: KC_DB_URL, value: jdbc:sqlserver://sqlserver-service:1433;databaseName=KeycloakDb;encrypt=false;trustServerCertificate=true }
             - { name: KC_DB_USERNAME, value: sa }
@@ -341,6 +343,42 @@ spec:
         - name: realm
           configMap:
             name: keycloak-realm-config
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: fcs-keycloak-tls
+  namespace: fcs-infra
+spec:
+  secretName: fcs-keycloak-tls
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-production
+  dnsNames:
+    - fcs-keycloak.flaviojcf.com.br
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: fcs-keycloak
+  namespace: fcs-infra
+spec:
+  ingressClassName: fcs-traefik
+  tls:
+    - hosts:
+        - fcs-keycloak.flaviojcf.com.br
+      secretName: fcs-keycloak-tls
+  rules:
+    - host: fcs-keycloak.flaviojcf.com.br
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: keycloak-service
+                port:
+                  number: 8080
 ---
 apiVersion: v1
 kind: Service
@@ -381,9 +419,50 @@ spec:
             - { name: KAFKA_CLUSTERS_0_NAME, value: fcs }
             - { name: KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS, value: kafka-service.fcs-infra.svc.cluster.local:29092 }
             - { name: KAFKA_CLUSTERS_0_READONLY, value: "true" }
+            - { name: AUTH_TYPE, value: LOGIN_FORM }
+            - { name: SPRING_SECURITY_USER_NAME, value: admin }
+            - name: SPRING_SECURITY_USER_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: fcs-infra-runtime, key: kafka-ui-password }
           resources:
             requests: { cpu: 50m, memory: 128Mi }
             limits: { cpu: 250m, memory: 256Mi }
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: fcs-kafka-ui-tls
+  namespace: fcs-infra
+spec:
+  secretName: fcs-kafka-ui-tls
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-production
+  dnsNames:
+    - fcs-kafka-ui.flaviojcf.com.br
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: fcs-kafka-ui
+  namespace: fcs-infra
+spec:
+  ingressClassName: fcs-traefik
+  tls:
+    - hosts:
+        - fcs-kafka-ui.flaviojcf.com.br
+      secretName: fcs-kafka-ui-tls
+  rules:
+    - host: fcs-kafka-ui.flaviojcf.com.br
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: kafka-ui-service
+                port:
+                  number: 8080
 ---
 apiVersion: v1
 kind: ConfigMap
