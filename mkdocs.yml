@@ -1,0 +1,6 @@
+site_name: FCS Infra
+site_description: Documentação da infraestrutura compartilhada da Conexão Solidária.
+nav:
+  - Início: index.md
+plugins:
+  - techdocs-core

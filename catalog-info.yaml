@@ -1,0 +1,17 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: fcs-infra
+  title: FCS Infra
+  description: Infraestrutura declarativa e componentes compartilhados da Conexão Solidária.
+  annotations:
+    github.com/project-slug: group10-tc-01/fcs-infra
+    backstage.io/techdocs-ref: dir:.
+  links:
+    - title: GitHub Actions
+      url: https://github.com/group10-tc-01/fcs-infra/actions
+spec:
+  type: infrastructure
+  lifecycle: production
+  owner: group:default/fcs-team
+  system: conexao-solidaria
