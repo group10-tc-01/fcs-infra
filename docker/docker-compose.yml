@@ -83,6 +83,7 @@ services:
         set -e
         kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic donation-received --partitions 1 --replication-factor 1
         kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic audit-log-requested --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic email-notification-requested --partitions 1 --replication-factor 1
 
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
@@ -228,6 +229,22 @@ services:
       Observability__OtlpAuthHeader: ""
     ports:
       - "5006:8080"
+
+  fcs-notifications:
+    image: ${FCS_NOTIFICATIONS_IMAGE:-ghcr.io/group10-tc-01/fcs-notifications:main}
+    depends_on:
+      kafka-topics-init:
+        condition: service_completed_successfully
+    environment:
+      DOTNET_ENVIRONMENT: Docker
+      ASPNETCORE_ENVIRONMENT: Docker
+      ASPNETCORE_URLS: http://+:8080
+      Resend__ApiKey: ${RESEND_API_KEY:-}
+      Observability__EnableOtlpExporter: "true"
+      Observability__OtlpEndpoint: http://otel-collector:4318
+      Observability__OtlpAuthHeader: ""
+    ports:
+      - "5007:8080"
 
   fcs-bff:
     image: ${FCS_BFF_IMAGE:-ghcr.io/group10-tc-01/fcs-bff:main}
