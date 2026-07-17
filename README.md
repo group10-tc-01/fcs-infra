@@ -14,7 +14,7 @@ Infraestrutura compartilhada da **Conexão Solidária**. Centraliza a plataforma
 - Terraform para host, cluster e recursos de plataforma.
 - Traefik e certificados TLS para exposição pública.
 - Keycloak, SQL Server, Kafka, MongoDB, Infisical e Datadog no namespace `fcs-infra`.
-- Namespaces e contratos de Secret das aplicações: `fcs-identity`, `fcs-campaign`, `fcs-donations`, `fcs-donation-worker`, `fcs-audit-logs`, `fcs-bff` e `fcs-web`.
+- Namespaces e contratos de Secret das aplicações: `fcs-identity`, `fcs-campaign`, `fcs-donations`, `fcs-donation-worker`, `fcs-notifications`, `fcs-audit-logs`, `fcs-bff` e `fcs-web`.
 
 ## Estrutura do repositório
 
