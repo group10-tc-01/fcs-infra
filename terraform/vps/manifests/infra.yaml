@@ -219,6 +219,7 @@ spec:
               done
               kafka-topics --bootstrap-server kafka-service:29092 --create --if-not-exists --topic donation-received --partitions 1 --replication-factor 1
               kafka-topics --bootstrap-server kafka-service:29092 --create --if-not-exists --topic audit-log-requested --partitions 1 --replication-factor 1
+              kafka-topics --bootstrap-server kafka-service:29092 --create --if-not-exists --topic email-notification-requested --partitions 1 --replication-factor 1
 ---
 apiVersion: v1
 kind: Service
