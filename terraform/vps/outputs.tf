@@ -9,7 +9,7 @@ output "public_endpoint" {
 }
 
 output "platform_namespaces" {
-  value       = ["fcs-infra", "fcs-identity", "fcs-campaigns", "fcs-donations", "fcs-donation-worker", "fcs-audit-logs"]
+  value       = ["fcs-infra", "fcs-identity", "fcs-campaigns", "fcs-donations", "fcs-donation-worker", "fcs-audit-logs", "fcs-notifications"]
   description = "Namespaces reserved for the FCS platform and applications."
 }
 
