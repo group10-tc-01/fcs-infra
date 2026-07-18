@@ -165,7 +165,7 @@ resource "helm_release" "datadog" {
       apiKeyExistingSecret    = "fcs-datadog-api-key"
       site                    = "us5.datadoghq.com"
       clusterName             = "fcs-vps-k3s"
-      tags                    = ["environment:vps", "platform:fcs", "cluster:fcs-vps-k3s"]
+      tags                    = ["env:production", "environment:vps", "platform:fcs", "cluster:fcs-vps-k3s"]
       logs                    = { enabled = false, containerCollectAll = false }
       apm                     = { socketEnabled = false, portEnabled = false }
       processAgent            = { processCollection = false, containerCollection = true }
