@@ -267,6 +267,7 @@ spec:
             exec:
               command: [mongosh, --quiet, --eval, "db.adminCommand('ping').ok || quit(1)"]
             initialDelaySeconds: 10
+            timeoutSeconds: 5
             periodSeconds: 10
   volumeClaimTemplates:
     - metadata:
