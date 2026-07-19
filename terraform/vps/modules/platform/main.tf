@@ -23,7 +23,8 @@ resource "kubernetes_manifest" "platform" {
     kubernetes_manifest.infisical_connection,
     kubernetes_manifest.infisical_auth,
     kubernetes_manifest.platform_runtime,
-    kubernetes_manifest.datadog_api_key
+    kubernetes_manifest.datadog_api_key,
+    kubernetes_manifest.database_admin_ui_credentials
   ]
 }
 
@@ -145,6 +146,44 @@ resource "kubernetes_manifest" "datadog_api_key" {
         template = {
           engineVersion = "v1"
           data          = { "api-key" = "{{ .DATADOG_API_KEY.Value }}" }
+        }
+      }]
+    }
+  }
+
+  depends_on = [kubernetes_manifest.infisical_auth]
+}
+
+resource "kubernetes_manifest" "database_admin_ui_credentials" {
+  manifest = {
+    apiVersion = "secrets.infisical.com/v1beta1"
+    kind       = "InfisicalStaticSecret"
+    metadata = {
+      name      = "fcs-database-admin-ui-credentials"
+      namespace = "fcs-infra"
+    }
+    spec = {
+      infisicalAuthRef = {
+        name      = "fcs-platform-auth"
+        namespace = "infisical-operator-system"
+      }
+      syncOptions = { refreshInterval = "5m", instantUpdates = false }
+      sources = [{
+        projectSlug     = var.infisical_project_slug
+        environmentSlug = var.infisical_environment_slug
+        secretPath      = "/platform"
+      }]
+      targets = [{
+        name           = "fcs-database-admin-ui-credentials"
+        namespace      = "fcs-infra"
+        kind           = "Secret"
+        creationPolicy = "Owner"
+        template = {
+          engineVersion = "v1"
+          data = {
+            "cloudbeaver-admin-password" = "{{ .CLOUDBEAVER_ADMIN_PASSWORD.Value }}"
+            "mongo-express-password"     = "{{ .MONGO_EXPRESS_PASSWORD.Value }}"
+          }
         }
       }]
     }

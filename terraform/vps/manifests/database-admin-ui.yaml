@@ -1,0 +1,201 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cloudbeaver-workspace
+  namespace: fcs-infra
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cloudbeaver-service
+  namespace: fcs-infra
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: cloudbeaver
+  ports:
+    - name: http
+      port: 8978
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloudbeaver
+  namespace: fcs-infra
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cloudbeaver
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cloudbeaver
+    spec:
+      containers:
+        - name: cloudbeaver
+          image: dbeaver/cloudbeaver:26.1.1
+          ports:
+            - containerPort: 8978
+              name: http
+          env:
+            - { name: CB_SERVER_NAME, value: FCS SQL Server }
+            - { name: CB_SERVER_URL, value: https://fcs-sql.flaviojcf.com.br/ }
+            - { name: CB_ADMIN_NAME, value: fcs-sql-admin }
+            - name: CB_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: fcs-database-admin-ui-credentials
+                  key: cloudbeaver-admin-password
+            - { name: CLOUDBEAVER_FORCE_HTTPS, value: "true" }
+          volumeMounts:
+            - name: workspace
+              mountPath: /opt/cloudbeaver/workspace
+          resources:
+            requests: { cpu: 250m, memory: 512Mi }
+            limits: { cpu: "1", memory: 1Gi }
+          readinessProbe:
+            httpGet: { path: /, port: http }
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /, port: http }
+            initialDelaySeconds: 90
+            periodSeconds: 20
+      volumes:
+        - name: workspace
+          persistentVolumeClaim:
+            claimName: cloudbeaver-workspace
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: fcs-sql-tls
+  namespace: fcs-infra
+spec:
+  secretName: fcs-sql-tls
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-production
+  dnsNames:
+    - fcs-sql.flaviojcf.com.br
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: fcs-sql
+  namespace: fcs-infra
+spec:
+  ingressClassName: fcs-traefik
+  tls:
+    - hosts:
+        - fcs-sql.flaviojcf.com.br
+      secretName: fcs-sql-tls
+  rules:
+    - host: fcs-sql.flaviojcf.com.br
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: cloudbeaver-service
+                port:
+                  number: 8978
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongo-express-service
+  namespace: fcs-infra
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: mongo-express
+  ports:
+    - name: http
+      port: 8081
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongo-express
+  namespace: fcs-infra
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mongo-express
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: mongo-express
+    spec:
+      containers:
+        - name: mongo-express
+          image: mongo-express:1.0.2-20-alpine3.19
+          ports:
+            - containerPort: 8081
+              name: http
+          env:
+            - { name: ME_CONFIG_MONGODB_URL, value: mongodb://mongodb-service:27017/ }
+            - { name: ME_CONFIG_BASICAUTH_USERNAME, value: fcs-mongo-admin }
+            - name: ME_CONFIG_BASICAUTH_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: fcs-database-admin-ui-credentials
+                  key: mongo-express-password
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { cpu: 250m, memory: 256Mi }
+          readinessProbe:
+            httpGet: { path: /, port: http }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /, port: http }
+            initialDelaySeconds: 30
+            periodSeconds: 20
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: fcs-mongo-tls
+  namespace: fcs-infra
+spec:
+  secretName: fcs-mongo-tls
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-production
+  dnsNames:
+    - fcs-mongo.flaviojcf.com.br
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: fcs-mongo
+  namespace: fcs-infra
+spec:
+  ingressClassName: fcs-traefik
+  tls:
+    - hosts:
+        - fcs-mongo.flaviojcf.com.br
+      secretName: fcs-mongo-tls
+  rules:
+    - host: fcs-mongo.flaviojcf.com.br
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: mongo-express-service
+                port:
+                  number: 8081
