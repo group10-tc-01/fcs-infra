@@ -24,7 +24,8 @@ resource "kubernetes_manifest" "platform" {
     kubernetes_manifest.infisical_auth,
     kubernetes_manifest.platform_runtime,
     kubernetes_manifest.datadog_api_key,
-    kubernetes_manifest.database_admin_ui_credentials
+    kubernetes_manifest.database_admin_ui_credentials,
+    kubernetes_manifest.developer_portal_minio
   ]
 }
 
@@ -183,6 +184,46 @@ resource "kubernetes_manifest" "database_admin_ui_credentials" {
           data = {
             "cloudbeaver-admin-password" = "{{ .CLOUDBEAVER_ADMIN_PASSWORD.Value }}"
             "mongo-express-password"     = "{{ .MONGO_EXPRESS_PASSWORD.Value }}"
+          }
+        }
+      }]
+    }
+  }
+
+  depends_on = [kubernetes_manifest.infisical_auth]
+}
+
+resource "kubernetes_manifest" "developer_portal_minio" {
+  manifest = {
+    apiVersion = "secrets.infisical.com/v1beta1"
+    kind       = "InfisicalStaticSecret"
+    metadata = {
+      name      = "developer-portal-minio"
+      namespace = "fcs-developer-portal"
+    }
+    spec = {
+      infisicalAuthRef = {
+        name      = "fcs-platform-auth"
+        namespace = "infisical-operator-system"
+      }
+      syncOptions = { refreshInterval = "5m", instantUpdates = false }
+      sources = [{
+        projectSlug     = var.infisical_project_slug
+        environmentSlug = var.infisical_environment_slug
+        secretPath      = "/developer-portal"
+      }]
+      targets = [{
+        name           = "developer-portal-minio"
+        namespace      = "fcs-developer-portal"
+        kind           = "Secret"
+        creationPolicy = "Owner"
+        template = {
+          engineVersion = "v1"
+          data = {
+            MINIO_ROOT_USER           = "{{ secretFrom \"/developer-portal\" \"minio-root-user\" }}"
+            MINIO_ROOT_PASSWORD       = "{{ secretFrom \"/developer-portal\" \"minio-root-password\" }}"
+            MINIO_TECHDOCS_ACCESS_KEY = "{{ secretFrom \"/developer-portal\" \"minio-techdocs-access-key\" }}"
+            MINIO_TECHDOCS_SECRET_KEY = "{{ secretFrom \"/developer-portal\" \"minio-techdocs-secret-key\" }}"
           }
         }
       }]

@@ -7,7 +7,8 @@ locals {
     "fcs-audit-logs",
     "fcs-notifications",
     "fcs-bff",
-    "fcs-web"
+    "fcs-web",
+    "fcs-developer-portal"
   ])
 }
 
