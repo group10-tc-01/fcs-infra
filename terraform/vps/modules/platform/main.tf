@@ -24,6 +24,7 @@ resource "kubernetes_manifest" "platform" {
     kubernetes_manifest.infisical_auth,
     kubernetes_manifest.platform_runtime,
     kubernetes_manifest.datadog_api_key,
+    kubernetes_manifest.database_admin_ui_credentials,
     kubernetes_manifest.developer_portal_minio
   ]
 }
@@ -154,6 +155,44 @@ resource "kubernetes_manifest" "datadog_api_key" {
   depends_on = [kubernetes_manifest.infisical_auth]
 }
 
+resource "kubernetes_manifest" "database_admin_ui_credentials" {
+  manifest = {
+    apiVersion = "secrets.infisical.com/v1beta1"
+    kind       = "InfisicalStaticSecret"
+    metadata = {
+      name      = "fcs-database-admin-ui-credentials"
+      namespace = "fcs-infra"
+    }
+    spec = {
+      infisicalAuthRef = {
+        name      = "fcs-platform-auth"
+        namespace = "infisical-operator-system"
+      }
+      syncOptions = { refreshInterval = "5m", instantUpdates = false }
+      sources = [{
+        projectSlug     = var.infisical_project_slug
+        environmentSlug = var.infisical_environment_slug
+        secretPath      = "/platform"
+      }]
+      targets = [{
+        name           = "fcs-database-admin-ui-credentials"
+        namespace      = "fcs-infra"
+        kind           = "Secret"
+        creationPolicy = "Owner"
+        template = {
+          engineVersion = "v1"
+          data = {
+            "cloudbeaver-admin-password" = "{{ .CLOUDBEAVER_ADMIN_PASSWORD.Value }}"
+            "mongo-express-password"     = "{{ .MONGO_EXPRESS_PASSWORD.Value }}"
+          }
+        }
+      }]
+    }
+  }
+
+  depends_on = [kubernetes_manifest.infisical_auth]
+}
+
 resource "kubernetes_manifest" "developer_portal_minio" {
   manifest = {
     apiVersion = "secrets.infisical.com/v1beta1"
@@ -206,7 +245,7 @@ resource "helm_release" "datadog" {
       apiKeyExistingSecret    = "fcs-datadog-api-key"
       site                    = "us5.datadoghq.com"
       clusterName             = "fcs-vps-k3s"
-      tags                    = ["environment:vps", "platform:fcs", "cluster:fcs-vps-k3s"]
+      tags                    = ["env:production", "environment:vps", "platform:fcs", "cluster:fcs-vps-k3s"]
       logs                    = { enabled = false, containerCollectAll = false }
       apm                     = { socketEnabled = false, portEnabled = false }
       processAgent            = { processCollection = false, containerCollection = true }
